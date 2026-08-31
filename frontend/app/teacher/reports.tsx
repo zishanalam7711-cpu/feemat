@@ -5,18 +5,34 @@ import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { COLORS, SPACING, RADIUS, inr } from "@/src/lib/theme";
 import { api } from "@/src/lib/api";
+import { ProUpgradeModal } from "@/src/components/ProUpgradeModal";
 
 export default function Reports() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [pro, setPro] = useState(false);
 
-  const load = useCallback(async () => { setLoading(true); try { setData(await api("/teacher/reports")); } catch {} setLoading(false); }, []);
+  const load = useCallback(async () => {
+    setLoading(true);
+    try { setData(await api("/teacher/reports")); }
+    catch (e: any) { if (String(e?.message || "").includes("Upgrade to Pro")) setPro(true); }
+    setLoading(false);
+  }, []);
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
-  if (loading || !data) return <View style={styles.center}><ActivityIndicator color={COLORS.brand} /></View>;
-
+  if (loading) return <View style={styles.center}><ActivityIndicator color={COLORS.brand} /></View>;
+  if (pro) return (
+    <View style={{ flex: 1, backgroundColor: COLORS.surfaceSecondary }}>
+      <View style={[styles.header, { paddingTop: insets.top + SPACING.md }]}>
+        <Pressable onPress={() => router.back()} hitSlop={12}><Ionicons name="chevron-back" size={26} color={COLORS.onSurface} /></Pressable>
+        <Text style={styles.hTitle}>Reports & Analytics</Text><View style={{ width: 26 }} />
+      </View>
+      <ProUpgradeModal visible={pro} onClose={() => { setPro(false); router.back(); }} feature="Reports & Analytics" />
+    </View>
+  );
+  if (!data) return null;
   const maxVal = Math.max(1, ...(data.monthly_collection || []).map((x: any) => x.amount));
 
   return (
@@ -32,31 +48,23 @@ export default function Reports() {
           <View style={styles.chart}>
             {data.monthly_collection.map((x: any) => (
               <View key={x.month} style={styles.bar}>
-                <View style={styles.barTrack}>
-                  <View style={[styles.barFill, { height: `${(x.amount / maxVal) * 100}%` }]} />
-                </View>
+                <View style={styles.barTrack}><View style={[styles.barFill, { height: `${(x.amount / maxVal) * 100}%` }]} /></View>
                 <Text style={styles.barLbl}>{x.month.slice(5)}</Text>
                 <Text style={styles.barAmt}>{inr(x.amount)}</Text>
               </View>
             ))}
           </View>
         </View>
-
         <View style={styles.card}>
           <Text style={styles.sect}>Top Defaulters</Text>
-          {data.defaulters.length === 0 ? (
-            <Text style={{ color: COLORS.muted, marginTop: SPACING.sm }}>No due fees. 🎉</Text>
-          ) : data.defaulters.map((d: any) => (
+          {data.defaulters.length === 0 ? <Text style={{ color: COLORS.muted, marginTop: SPACING.sm }}>No due fees. 🎉</Text> :
+           data.defaulters.map((d: any) => (
             <Pressable key={d.connection_id} style={styles.defRow} onPress={() => router.push(`/teacher/student/${d.connection_id}`)}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.defName}>{d.name}</Text>
-                <Text style={styles.meta}>{d.admission_number}</Text>
-              </View>
+              <View style={{ flex: 1 }}><Text style={styles.defName}>{d.name}</Text><Text style={styles.meta}>{d.admission_number}</Text></View>
               <Text style={styles.defAmt}>{inr(d.due)}</Text>
             </Pressable>
           ))}
         </View>
-
         <View style={styles.card}>
           <Text style={styles.sect}>Today's Attendance</Text>
           <Text style={styles.big}>{data.today_attendance}</Text>

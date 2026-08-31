@@ -27,6 +27,7 @@ export default function TeacherLayout() {
       <Tabs.Screen name="reports" options={{ href: null }} />
       <Tabs.Screen name="announcements" options={{ href: null }} />
       <Tabs.Screen name="receipt/[receiptNumber]" options={{ href: null }} />
+      <Tabs.Screen name="idcard/[id]" options={{ href: null }} />
     </Tabs>
   );
 }

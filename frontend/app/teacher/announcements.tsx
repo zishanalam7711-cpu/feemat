@@ -7,6 +7,7 @@ import { COLORS, SPACING, RADIUS } from "@/src/lib/theme";
 import { api } from "@/src/lib/api";
 import { Input } from "@/src/components/Input";
 import { Button } from "@/src/components/Button";
+import { ProUpgradeModal } from "@/src/components/ProUpgradeModal";
 
 export default function Announcements() {
   const insets = useSafeAreaInsets();
@@ -17,6 +18,7 @@ export default function Announcements() {
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
   const [busy, setBusy] = useState(false);
+  const [pro, setPro] = useState(false);
 
   const load = useCallback(async () => { setLoading(true); try { setItems(await api("/teacher/announcements")); } catch {} setLoading(false); }, []);
   useFocusEffect(useCallback(() => { load(); }, [load]));
@@ -24,7 +26,9 @@ export default function Announcements() {
   const create = async () => {
     if (!title.trim()) return;
     setBusy(true);
-    try { await api("/teacher/announcements", { method: "POST", body: { title, body, target: "all" } }); setShow(false); setTitle(""); setBody(""); await load(); } catch {} finally { setBusy(false); }
+    try { await api("/teacher/announcements", { method: "POST", body: { title, body, target: "all" } }); setShow(false); setTitle(""); setBody(""); await load(); }
+    catch (e: any) { if (String(e?.message || "").includes("Upgrade to Pro")) { setShow(false); setPro(true); } }
+    finally { setBusy(false); }
   };
 
   return (
@@ -59,6 +63,7 @@ export default function Announcements() {
           </View>
         </KeyboardAvoidingView>
       </Modal>
+      <ProUpgradeModal visible={pro} onClose={() => setPro(false)} feature="Announcements" />
     </View>
   );
 }

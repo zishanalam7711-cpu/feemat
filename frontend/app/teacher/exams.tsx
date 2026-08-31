@@ -7,6 +7,7 @@ import { COLORS, SPACING, RADIUS } from "@/src/lib/theme";
 import { api } from "@/src/lib/api";
 import { Input } from "@/src/components/Input";
 import { Button } from "@/src/components/Button";
+import { ProUpgradeModal } from "@/src/components/ProUpgradeModal";
 
 export default function Exams() {
   const insets = useSafeAreaInsets();
@@ -17,6 +18,7 @@ export default function Exams() {
   const [showNew, setShowNew] = useState(false);
   const [showMarks, setShowMarks] = useState<any>(null);
   const [marksMap, setMarksMap] = useState<Record<string, string>>({});
+  const [pro, setPro] = useState(false);
 
   // create form
   const [title, setTitle] = useState("");
@@ -43,7 +45,9 @@ export default function Exams() {
       await api("/teacher/exams", { method: "POST", body: { title, subject, total_marks: parseFloat(total), passing_marks: parseFloat(pass), exam_date: date } });
       setShowNew(false); setTitle(""); setSubject(""); setTotal("100"); setPass("35");
       await load();
-    } catch {} finally { setBusy(false); }
+    } catch (e: any) {
+      if (String(e?.message || "").includes("Upgrade to Pro")) { setShowNew(false); setPro(true); }
+    } finally { setBusy(false); }
   };
 
   const openMarks = async (e: any) => {
@@ -141,6 +145,7 @@ export default function Exams() {
           </View>
         </View>
       </Modal>
+      <ProUpgradeModal visible={pro} onClose={() => setPro(false)} feature="Exams & Results" />
     </View>
   );
 }

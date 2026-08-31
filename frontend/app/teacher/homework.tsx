@@ -7,6 +7,7 @@ import { COLORS, SPACING, RADIUS } from "@/src/lib/theme";
 import { api } from "@/src/lib/api";
 import { Input } from "@/src/components/Input";
 import { Button } from "@/src/components/Button";
+import { ProUpgradeModal } from "@/src/components/ProUpgradeModal";
 
 export default function Homework() {
   const insets = useSafeAreaInsets();
@@ -14,6 +15,7 @@ export default function Homework() {
   const [items, setItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [show, setShow] = useState(false);
+  const [pro, setPro] = useState(false);
   const [title, setTitle] = useState("");
   const [desc, setDesc] = useState("");
   const [due, setDue] = useState(new Date(Date.now() + 3 * 24 * 3600 * 1000).toISOString().slice(0, 10));
@@ -29,7 +31,9 @@ export default function Homework() {
       await api("/teacher/homework", { method: "POST", body: { title, description: desc, due_date: due, target: "all" } });
       setShow(false); setTitle(""); setDesc("");
       await load();
-    } catch {} finally { setBusy(false); }
+    } catch (e: any) {
+      if (String(e?.message || "").includes("Upgrade to Pro")) { setShow(false); setPro(true); }
+    } finally { setBusy(false); }
   };
 
   return (
@@ -71,6 +75,7 @@ export default function Homework() {
           </View>
         </KeyboardAvoidingView>
       </Modal>
+      <ProUpgradeModal visible={pro} onClose={() => setPro(false)} feature="Homework Assignments" />
     </View>
   );
 }

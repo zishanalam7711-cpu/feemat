@@ -106,12 +106,53 @@ export default function TeacherProfileScreen() {
           </View>
         </View>
 
+        <View style={styles.section}>
+          <Text style={styles.sectTitle}>Reminders</Text>
+          <ReminderControls />
+        </View>
+
         <View style={{ padding: SPACING.lg, gap: SPACING.md }}>
           <Button testID="save-profile-btn" title="Save Changes" loading={saving} onPress={save} />
           <Button testID="logout-btn" title="Log Out" variant="secondary" onPress={async () => { await signOut(); router.replace("/"); }} />
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
+  );
+}
+
+function ReminderControls() {
+  const [prefs, setPrefs] = React.useState<{ enabled_due: boolean; enabled_overdue: boolean } | null>(null);
+  const [busy, setBusy] = React.useState(false);
+  const [msg, setMsg] = React.useState<string | null>(null);
+  React.useEffect(() => { (async () => { try { setPrefs(await require("@/src/lib/api").api("/teacher/reminder-prefs")); } catch {} })(); }, []);
+  const toggle = async (k: "enabled_due" | "enabled_overdue") => {
+    if (!prefs) return;
+    const next = { ...prefs, [k]: !prefs[k] };
+    setPrefs(next);
+    try { await require("@/src/lib/api").api("/teacher/reminder-prefs", { method: "PUT", body: { [k]: next[k] } }); } catch {}
+  };
+  const runNow = async () => {
+    setBusy(true);
+    try {
+      const res = await require("@/src/lib/api").api("/teacher/reminders/run", { method: "POST" });
+      setMsg(`${res.fired} reminder${res.fired === 1 ? "" : "s"} sent today.`);
+      setTimeout(() => setMsg(null), 4000);
+    } catch {} finally { setBusy(false); }
+  };
+  if (!prefs) return null;
+  return (
+    <View style={{ gap: SPACING.sm }}>
+      <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+        <Text style={{ color: COLORS.onSurface, fontSize: 14 }}>Send fee-due reminders</Text>
+        <Switch value={!!prefs.enabled_due} onValueChange={() => toggle("enabled_due")} />
+      </View>
+      <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+        <Text style={{ color: COLORS.onSurface, fontSize: 14 }}>Send overdue reminders</Text>
+        <Switch value={!!prefs.enabled_overdue} onValueChange={() => toggle("enabled_overdue")} />
+      </View>
+      <Button testID="send-reminders-now" title={busy ? "Sending…" : "Send Reminders Now"} variant="secondary" onPress={runNow} loading={busy} />
+      {msg ? <Text style={{ color: COLORS.success, fontSize: 12 }}>{msg}</Text> : null}
+    </View>
   );
 }
 

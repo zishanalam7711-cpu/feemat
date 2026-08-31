@@ -213,7 +213,8 @@ export default function StudentDetail() {
           ))}
         </View>
 
-        <View style={{ padding: SPACING.md }}>
+        <View style={{ padding: SPACING.md, gap: SPACING.md }}>
+          <Button testID="idcard-btn" title="Generate ID Card (Pro)" variant="secondary" onPress={() => router.push(`/teacher/idcard/${id}`)} />
           <Button title={c.active === false ? "Student Deactivated" : "Deactivate Student"} variant="secondary" onPress={deactivate} disabled={c.active === false} testID="deactivate-btn" />
         </View>
       </ScrollView>

@@ -17,6 +17,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import BaseModel, EmailStr, Field
+from payment_service import get_payment_service, PRO_MONTHLY_INR, PRO_YEARLY_INR
 
 # ---------- config ----------
 ROOT_DIR = Path(__file__).parent
@@ -29,8 +30,6 @@ JWT_ALG = "HS256"
 JWT_TTL_MIN = 60 * 24 * 30
 
 FREE_STUDENT_LIMIT = 30
-PRO_MONTHLY_INR = 299
-PRO_YEARLY_INR = 2999
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 logger = logging.getLogger("feemat")
@@ -55,6 +54,11 @@ async def lifespan(app: FastAPI):
     await db.installments.create_index("connection_id")
     await db.attendance.create_index([("connection_id", 1), ("date", 1)], unique=True)
     await db.notifications.create_index([("user_id", 1), ("created_at", -1)])
+    await db.notifications.create_index(
+        [("user_id", 1), ("dedup_key", 1)],
+        unique=True,
+        partialFilterExpression={"dedup_key": {"$exists": True}},
+    )
     await db.fee_months.create_index([("connection_id", 1), ("month", 1)], unique=True)
     await db.receipts.create_index("receipt_number", unique=True)
     await db.classes.create_index([("teacher_user_id", 1), ("name", 1)])
@@ -173,18 +177,36 @@ def require_role(role: Role):
 
 
 async def teacher_plan(teacher_user_id: str) -> dict:
-    """Return effective plan: {plan, active, expires_at}. Auto-downgrade if expired."""
-    t = await db.teachers.find_one({"user_id": teacher_user_id})
-    plan = (t or {}).get("plan", "free")
-    exp = (t or {}).get("plan_expires_at")
+    """Return effective plan: {plan, status, billing, expires_at, provider}. Auto-downgrade if expired."""
+    t = await db.teachers.find_one({"user_id": teacher_user_id}) or {}
+    plan = t.get("plan", "free")
+    status = t.get("subscription_status", "active" if plan == "pro" else "cancelled")
+    exp = t.get("plan_expires_at")
+    billing = t.get("plan_billing")
+    provider = t.get("plan_provider", "mock")
     if plan == "pro" and exp:
         try:
             exp_dt = datetime.fromisoformat(exp)
             if exp_dt <= now_utc():
                 plan = "free"
+                status = "expired"
+                # persist expiration
+                await db.teachers.update_one(
+                    {"user_id": teacher_user_id},
+                    {"$set": {"plan": "free", "subscription_status": "expired"}},
+                )
         except Exception:
-            plan = "free"
-    return {"plan": plan, "expires_at": exp, "billing": (t or {}).get("plan_billing")}
+            plan = "free"; status = "expired"
+    return {"plan": plan, "status": status, "billing": billing, "expires_at": exp, "provider": provider}
+
+
+def require_pro():
+    async def dep(user: dict = Depends(require_role("teacher"))):
+        p = await teacher_plan(user["id"])
+        if p["plan"] != "pro":
+            raise HTTPException(402, "Upgrade to Pro to use this feature")
+        return user
+    return dep
 
 
 async def count_active_students(teacher_user_id: str) -> int:
@@ -324,26 +346,31 @@ class AnnouncementIn(BaseModel):
 
 
 # ---------- notification helper ----------
-async def notify(user_id: str, title: str, body: str, kind: str = "info"):
-    await db.notifications.insert_one(
-        {
-            "id": str(uuid.uuid4()),
-            "user_id": user_id,
-            "title": title,
-            "body": body,
-            "kind": kind,
-            "read": False,
-            "created_at": now_utc().isoformat(),
-        }
-    )
+async def notify(user_id: str, title: str, body: str, kind: str = "info", dedup_key: Optional[str] = None):
+    doc = {
+        "id": str(uuid.uuid4()),
+        "user_id": user_id,
+        "title": title,
+        "body": body,
+        "kind": kind,
+        "read": False,
+        "created_at": now_utc().isoformat(),
+    }
+    if dedup_key:
+        doc["dedup_key"] = dedup_key
+    try:
+        await db.notifications.insert_one(doc)
+    except Exception:
+        # duplicate (dedup_key) — silently swallow to keep it idempotent
+        pass
 
 
 async def notify_many(user_ids: List[str], title: str, body: str, kind: str = "info"):
     if not user_ids:
         return
     now = now_utc().isoformat()
-    docs = [{"id": str(uuid.uuid4()), "user_id": uid, "title": title, "body": body, "kind": kind, "read": False, "created_at": now} for uid in user_ids]
-    await db.notifications.insert_many(docs)
+    for uid in user_ids:
+        await notify(uid, title, body, kind)
 
 
 # ---------- fee-months (auto monthly cycles) ----------
@@ -395,7 +422,7 @@ async def ensure_fee_months(conn: dict) -> List[dict]:
         )
     if to_insert:
         await db.fee_months.insert_many(to_insert)
-        # Fire notification for latest generated month
+        # Fire deduplicated reminder for latest generated month
         latest = to_insert[-1]
         try:
             await notify(
@@ -403,6 +430,7 @@ async def ensure_fee_months(conn: dict) -> List[dict]:
                 "Monthly Fee Due",
                 f"Your fee of ₹{monthly_fee:.0f} for {latest['month']} is now due.",
                 "fee",
+                dedup_key=f"fee-due:{conn['id']}:{latest['month']}",
             )
         except Exception:
             pass
@@ -1039,39 +1067,61 @@ async def mark_all_read(user: dict = Depends(current_user)):
 async def get_subscription(user: dict = Depends(require_role("teacher"))):
     plan = await teacher_plan(user["id"])
     active = await count_active_students(user["id"])
+    yearly_savings = PRO_MONTHLY_INR * 12 - PRO_YEARLY_INR
     return {
         **plan,
         "active_students": active,
         "free_limit": FREE_STUDENT_LIMIT,
-        "pricing": {"monthly_inr": PRO_MONTHLY_INR, "yearly_inr": PRO_YEARLY_INR, "yearly_savings_inr": PRO_MONTHLY_INR * 12 - PRO_YEARLY_INR},
+        "pricing": {"monthly_inr": PRO_MONTHLY_INR, "yearly_inr": PRO_YEARLY_INR, "yearly_savings_inr": yearly_savings},
     }
 
 
 @api.post("/teacher/subscription/upgrade")
 async def upgrade(data: UpgradeIn, user: dict = Depends(require_role("teacher"))):
-    """MOCK activation. Replace with real gateway (Stripe/Razorpay) in production."""
-    now = now_utc()
-    if data.billing == "monthly":
-        expires = now + timedelta(days=30)
-    else:
-        expires = now + timedelta(days=365)
-    await db.teachers.update_one(
-        {"user_id": user["id"]},
-        {"$set": {"plan": "pro", "plan_billing": data.billing, "plan_expires_at": expires.isoformat()}},
-    )
-    await notify(user["id"], "Welcome to Pro 🎉", "Unlimited students, receipts, reports and more are now unlocked.", "success")
+    """Delegates to PaymentService. Mock activates immediately; Razorpay stub returns pending."""
+    svc = get_payment_service()
+    snap = await svc.create_subscription(user["id"], data.billing)
+    upd: dict[str, Any] = {
+        "plan": snap.get("plan", "free"),
+        "plan_billing": snap.get("billing"),
+        "plan_expires_at": snap.get("expires_at"),
+        "subscription_status": snap.get("status", "pending"),
+        "plan_provider": snap.get("provider", svc.provider_name),
+        "provider_subscription_id": snap.get("provider_subscription_id"),
+    }
+    await db.teachers.update_one({"user_id": user["id"]}, {"$set": upd})
+    if snap.get("plan") == "pro" and snap.get("status") == "active":
+        await notify(user["id"], "Welcome to Pro 🎉", "Unlimited students, receipts, homework and reports are unlocked.", "success")
     return await get_subscription(user)
 
 
 @api.post("/teacher/subscription/cancel")
 async def cancel_sub(user: dict = Depends(require_role("teacher"))):
-    await db.teachers.update_one({"user_id": user["id"]}, {"$set": {"plan": "free", "plan_billing": None, "plan_expires_at": None}})
+    """Cancel: for mock this immediately reverts; a real gateway would keep Pro until the term ends."""
+    svc = get_payment_service()
+    snap = await svc.cancel_subscription(user["id"])
+    upd = {
+        "plan": snap.get("plan", "free"),
+        "plan_billing": snap.get("billing"),
+        "plan_expires_at": snap.get("expires_at"),
+        "subscription_status": snap.get("status", "cancelled"),
+    }
+    await db.teachers.update_one({"user_id": user["id"]}, {"$set": upd})
     return await get_subscription(user)
 
 
-# ---------- reports ----------
+@api.post("/teacher/subscription/webhook")
+async def sub_webhook(payload: dict):
+    """Public webhook entrypoint. Concrete providers validate signatures internally."""
+    svc = get_payment_service()
+    # Signature would come from headers in a real deployment; keep this permissive for the mock.
+    result = await svc.handle_webhook(payload, signature=None)
+    return result
+
+
+# ---------- reports (Pro) ----------
 @api.get("/teacher/reports")
-async def teacher_reports(user: dict = Depends(require_role("teacher"))):
+async def teacher_reports(user: dict = Depends(require_pro())):
     # collections by month (last 6 months)
     end = now_utc().date()
     start = date(end.year - (1 if end.month <= 6 else 0), ((end.month - 6) % 12) or 12, 1)
@@ -1103,9 +1153,9 @@ async def teacher_reports(user: dict = Depends(require_role("teacher"))):
     return {"monthly_collection": monthly_series, "today_attendance": today_att, "defaulters": defaulters[:20]}
 
 
-# ---------- homework ----------
+# ---------- homework (Pro) ----------
 @api.post("/teacher/homework")
-async def create_homework(data: HomeworkIn, user: dict = Depends(require_role("teacher"))):
+async def create_homework(data: HomeworkIn, user: dict = Depends(require_pro())):
     doc = {
         "id": str(uuid.uuid4()),
         "teacher_user_id": user["id"],
@@ -1163,9 +1213,9 @@ async def _resolve_targets(teacher_uid: str, target: str, target_id: Optional[st
     return [c["student_user_id"] async for c in db.connections.find(match)]
 
 
-# ---------- exams / marks / results ----------
+# ---------- exams / marks / results (Pro) ----------
 @api.post("/teacher/exams")
-async def create_exam(data: ExamIn, user: dict = Depends(require_role("teacher"))):
+async def create_exam(data: ExamIn, user: dict = Depends(require_pro())):
     doc = {
         "id": str(uuid.uuid4()),
         "teacher_user_id": user["id"],
@@ -1186,7 +1236,7 @@ async def list_exams(user: dict = Depends(require_role("teacher"))):
 
 
 @api.post("/teacher/exams/{exam_id}/marks")
-async def set_marks(exam_id: str, data: MarksIn, user: dict = Depends(require_role("teacher"))):
+async def set_marks(exam_id: str, data: MarksIn, user: dict = Depends(require_pro())):
     exam = await db.exams.find_one({"id": exam_id, "teacher_user_id": user["id"]})
     if not exam:
         raise HTTPException(404, "Exam not found")
@@ -1240,8 +1290,9 @@ async def student_results(user: dict = Depends(require_role("student"))):
 
 
 # ---------- announcements ----------
+# ---------- announcements (Pro) ----------
 @api.post("/teacher/announcements")
-async def create_announcement(data: AnnouncementIn, user: dict = Depends(require_role("teacher"))):
+async def create_announcement(data: AnnouncementIn, user: dict = Depends(require_pro())):
     doc = {
         "id": str(uuid.uuid4()),
         "teacher_user_id": user["id"],
@@ -1294,6 +1345,95 @@ async def student_home(user: dict = Depends(require_role("student"))):
         conn_out["attendance_pct"] = pct
     unread = await db.notifications.count_documents({"user_id": user["id"], "read": False})
     return {"student": student, "teacher": teacher, "connection": conn_out, "unread": unread}
+
+
+# ---------- ID card (Pro) ----------
+@api.get("/teacher/students/{connection_id}/idcard")
+async def get_idcard(connection_id: str, user: dict = Depends(require_pro())):
+    conn = await _load_conn_for_teacher(user["id"], connection_id)
+    student = clean(await db.students.find_one({"user_id": conn["student_user_id"]})) or {}
+    teacher = clean(await db.teachers.find_one({"user_id": user["id"]})) or {}
+    class_name = ""
+    batch_name = ""
+    if conn.get("class_id"):
+        c = await db.classes.find_one({"id": conn["class_id"]})
+        class_name = (c or {}).get("name", "")
+    if conn.get("batch_id"):
+        b = await db.batches.find_one({"id": conn["batch_id"]})
+        batch_name = (b or {}).get("name", "")
+    # Safe QR payload: only public identifiers, never phone/email/address.
+    qr_payload = f"FM|{teacher.get('teacher_id','')}|{conn['admission_number']}"
+    return {
+        "student": {"name": student.get("name"), "photo_url": student.get("photo_url"), "father_name": student.get("father_name")},
+        "admission_number": conn["admission_number"],
+        "class_name": class_name,
+        "batch_name": batch_name,
+        "teacher_id": teacher.get("teacher_id"),
+        "teacher_name": teacher.get("name"),
+        "institute": teacher.get("coaching_name") or teacher.get("name"),
+        "institute_logo_url": teacher.get("institute_logo_url"),
+        "institute_address": teacher.get("coaching_address"),
+        "institute_phone": teacher.get("phone") if teacher.get("public_phone") else "",
+        "qr_payload": qr_payload,
+    }
+
+
+# ---------- reminders ----------
+class ReminderPrefsIn(BaseModel):
+    enabled_due: Optional[bool] = None
+    enabled_overdue: Optional[bool] = None
+
+
+DEFAULT_REMINDER_PREFS = {"enabled_due": True, "enabled_overdue": True}
+
+
+@api.get("/teacher/reminder-prefs")
+async def get_reminder_prefs(user: dict = Depends(require_role("teacher"))):
+    t = await db.teachers.find_one({"user_id": user["id"]}) or {}
+    prefs = {**DEFAULT_REMINDER_PREFS, **(t.get("reminder_prefs") or {})}
+    return prefs
+
+
+@api.put("/teacher/reminder-prefs")
+async def set_reminder_prefs(data: ReminderPrefsIn, user: dict = Depends(require_role("teacher"))):
+    upd = {k: v for k, v in data.model_dump(exclude_unset=True).items() if v is not None}
+    if upd:
+        current = {**DEFAULT_REMINDER_PREFS, **((await db.teachers.find_one({"user_id": user["id"]}) or {}).get("reminder_prefs") or {})}
+        current.update(upd)
+        await db.teachers.update_one({"user_id": user["id"]}, {"$set": {"reminder_prefs": current}})
+    return await get_reminder_prefs(user)
+
+
+@api.post("/teacher/reminders/run")
+async def run_reminders(user: dict = Depends(require_role("teacher"))):
+    """Fire de-duplicated reminders for every unpaid/overdue fee_month owned by this teacher.
+    Safe to call repeatedly; dedup_key `fee-reminder:{connection_id}:{month}:{yyyy-mm-dd}` blocks same-day repeats.
+    """
+    t = await db.teachers.find_one({"user_id": user["id"]}) or {}
+    prefs = t.get("reminder_prefs") or {"enabled_due": True, "enabled_overdue": True}
+    today = now_utc().date().isoformat()
+    fired = 0
+    async for fm in db.fee_months.find({"teacher_user_id": user["id"]}):
+        fm = clean(fm)
+        status = compute_status(fm)
+        if status == "paid" or status == "waived":
+            continue
+        if status == "due" and not prefs.get("enabled_due", True):
+            continue
+        if status == "overdue" and not prefs.get("enabled_overdue", True):
+            continue
+        due_amt = max(net_amount(fm) - float(fm.get("paid") or 0), 0)
+        title = "Fee Overdue" if status == "overdue" else "Fee Due"
+        body = f"Your fee of ₹{due_amt:.0f} for {fm['month']} is {'still pending' if status == 'overdue' else 'now due'}."
+        before = await db.notifications.count_documents({"user_id": fm["student_user_id"], "dedup_key": f"fee-reminder:{fm['connection_id']}:{fm['month']}:{today}"})
+        await notify(
+            fm["student_user_id"], title, body, "fee",
+            dedup_key=f"fee-reminder:{fm['connection_id']}:{fm['month']}:{today}",
+        )
+        after = await db.notifications.count_documents({"user_id": fm["student_user_id"], "dedup_key": f"fee-reminder:{fm['connection_id']}:{fm['month']}:{today}"})
+        if after > before:
+            fired += 1
+    return {"fired": fired, "date": today}
 
 
 # ---------- mount ----------

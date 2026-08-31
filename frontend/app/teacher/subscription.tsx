@@ -44,6 +44,7 @@ export default function Subscription() {
           <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 6 }}>
             <Ionicons name={isPro ? "star" : "flash"} size={18} color={isPro ? "#F59E0B" : COLORS.brand} />
             <Text style={styles.stateVal}>{isPro ? "PRO" : "FREE"}</Text>
+            {sub?.status ? <Text style={styles.stateExp}>• {String(sub.status).toUpperCase()}</Text> : null}
             {isPro && sub?.expires_at ? <Text style={styles.stateExp}>till {new Date(sub.expires_at).toLocaleDateString()}</Text> : null}
           </View>
           <Text style={styles.stateSub}>{sub?.active_students} active students {isPro ? "(unlimited)" : `of ${sub?.free_limit}`}</Text>
@@ -87,7 +88,7 @@ export default function Subscription() {
         <LinearGradient colors={["#EC4899", "#7C3AED"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.planPro}>
           <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
             <Text style={[styles.planName, { color: "#fff" }]}>Pro Yearly</Text>
-            <View style={styles.saveBadge}><Text style={styles.saveTxt}>BEST VALUE • SAVE {inr(savings)}</Text></View>
+            <View style={styles.saveBadge}><Text style={styles.saveTxt}>BEST VALUE • Save ₹589/year</Text></View>
           </View>
           <Text style={[styles.price, { color: "#fff" }]}>{inr(sub?.pricing?.yearly_inr)}<Text style={[styles.priceUnit, { color: "rgba(255,255,255,0.9)" }]}> /year</Text></Text>
           <FeatureLight label="Everything in Pro Monthly" />

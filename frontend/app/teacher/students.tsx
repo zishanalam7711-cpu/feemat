@@ -1,7 +1,6 @@
 import React, { useCallback, useState } from "react";
 import { View, Text, StyleSheet, FlatList, Pressable, ActivityIndicator, TextInput, ScrollView } from "react-native";
-import { useFocusEffect, useRouter } from "expo-router";
-import { Ionicons } from "@expo/vector-icons";
+import { useFocusEffect, useRouter } from "expo-router";import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { COLORS, SPACING, RADIUS, inr } from "@/src/lib/theme";
 import { api } from "@/src/lib/api";
@@ -23,6 +22,7 @@ export default function StudentsScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const [items, setItems] = useState<Item[]>([]);
+  const [sub, setSub] = useState<{ plan: string; active_students: number; free_limit: number } | null>(null);
   const [q, setQ] = useState("");
   const [filter, setFilter] = useState<"all" | "due" | "paid" | "inactive">("all");
   const [loading, setLoading] = useState(true);
@@ -30,8 +30,11 @@ export default function StudentsScreen() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await api<{ items: Item[]; total: number }>(`/teacher/students?q=${encodeURIComponent(q)}&filter=${filter}`);
-      setItems(res.items);
+      const [res, s] = await Promise.all([
+        api<{ items: Item[]; total: number }>(`/teacher/students?q=${encodeURIComponent(q)}&filter=${filter}`),
+        api<any>("/teacher/subscription"),
+      ]);
+      setItems(res.items); setSub(s);
     } catch {}
     setLoading(false);
   }, [q, filter]);
@@ -62,6 +65,13 @@ export default function StudentsScreen() {
           ))}
         </ScrollView>
       </View>
+      {sub && sub.plan === "free" && sub.active_students >= (sub.free_limit - 5) && (
+        <Pressable testID="free-banner" onPress={() => router.push("/teacher/subscription")} style={styles.banner}>
+          <Ionicons name="rocket" size={18} color={COLORS.brand} />
+          <Text style={styles.bannerTxt}>{sub.active_students}/{sub.free_limit} Free students used — Upgrade to Pro for unlimited</Text>
+          <Ionicons name="chevron-forward" size={18} color={COLORS.brand} />
+        </Pressable>
+      )}
       {loading ? (
         <View style={styles.center}><ActivityIndicator color={COLORS.brand} /></View>
       ) : items.length === 0 ? (
@@ -116,4 +126,6 @@ const styles = StyleSheet.create({
   rowMeta: { color: COLORS.muted, fontSize: 12, marginTop: 2 },
   due: { color: COLORS.error, fontWeight: "800" },
   paid: { color: COLORS.success, fontWeight: "800" },
+  banner: { flexDirection: "row", alignItems: "center", gap: SPACING.sm, margin: SPACING.md, padding: SPACING.md, backgroundColor: COLORS.brandSoft, borderRadius: RADIUS.md, borderWidth: 1, borderColor: "#DDD6FE" },
+  bannerTxt: { flex: 1, color: COLORS.brand, fontSize: 12, fontWeight: "700" },
 });

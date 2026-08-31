@@ -1,0 +1,51 @@
+{
+  "summary": "FeeMat V2.1 backend fully tested via pytest — 84/84 passed (55 V2 regression + 29 new V2.1). Coverage: (a) Pro gates return 402 with detail 'Upgrade to Pro' on POST /teacher/homework, POST /teacher/exams, POST /teacher/exams/{id}/marks, GET /teacher/reports, POST /teacher/announcements, GET /teacher/students/{id}/idcard when caller is Free; (b) POST /teacher/subscription/upgrade with mock provider returns plan='pro', status='active', provider='mock', expires_at ≈ +30 (monthly) / +365 (yearly) days, and unblocks all Pro endpoints (verified 200 responses); (c) ID card endpoint returns student/admission_number/class_name/batch_name/teacher_id/teacher_name/institute/qr_payload — qr_payload is EXACTLY 'FM|{teacher_id}|{admission_number}' and contains no phone/email/@/address substrings; institute_phone is included only when teacher.public_phone is true (toggled both ways in tests); (d) Fee-months lazily generated on GET /connections/{id} with dedup_key `fee-due:{connection_id}:{month}` — repeated GETs never duplicate the auto notification (verified via direct MongoDB count); (e) POST /teacher/reminders/run fires reminders with dedup_key `fee-reminder:{connection_id}:{month}:{today}`, second same-day call returns fired=0; with enabled_overdue=false, a manually inserted overdue fee_month is NOT re-notified; (f) GET /teacher/reminder-prefs defaults to {enabled_due:true, enabled_overdue:true}; partial PUT with only enabled_overdue=false preserves enabled_due=true both in the response and on subsequent GETs (defaults merge is preserved — the previously-buggy path is confirmed FIXED); (g) POST /teacher/subscription/cancel reverts plan='free', status='cancelled', preserves student list, connections, and fee_months intact; Pro endpoints return 402 immediately after cancel; (h) Auto-downgrade: patching plan_expires_at to a past ISO datetime directly in MongoDB then hitting GET /teacher/subscription auto-flips plan='free', status='expired' and persists that state; connection + fee_months data survives; Pro endpoints return 402 post-expiry; (i) notification dedup_key uniqueness enforced at DB level (pymongo DuplicateKeyError on second insert with same (user_id, dedup_key)); (j) Auth boundaries: 10 new endpoints all return 401 without Bearer, student token returns 403 on teacher endpoints, cross-teacher ID card returns 404; (k) Backwards compat: /teacher/dashboard stats keys unchanged, /teacher/students still returns {total, items:[{student, total_billed, paid_all, due,...}]}. Also had to update V2 test suite (TestHomework/Exams/Announcements/Reports) to first upgrade to Pro because V2.1 contract now gates these endpoints — this is an INTENTIONAL contract change per the V2.1 spec, not a regression, and V2 tests were adjusted (auto-upgrade fixture in TestHomework, cancel before TestSubscription.test_get_default_free).",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {
+        "endpoint": "POST /api/teacher/exams/{exam_id}/marks",
+        "issue": "Pre-existing V2 bug (from iteration_1): marks upsert sets `id` to null on the second write for the same (exam_id, student_user_id). Root cause at server.py:1252-1268 — id creation is inside $setOnInsert (correct) BUT the surrounding tests never re-write, so this bug is still latent. Recommend adding a test that writes marks twice and asserts id remains stable. Not tested this iteration."
+      },
+      {
+        "endpoint": "POST /api/teacher/subscription/webhook",
+        "issue": "Endpoint is public (no auth) which is correct for real gateways (signature-verified) but the mock provider ignores signatures entirely. Safe today because get_payment_service returns MockPaymentProvider that returns {ok:true} for any payload; flag before enabling Razorpay in prod."
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_feemat_v2_1.py",
+    "/app/backend/tests/test_feemat_v2.py",
+    "/app/backend/tests/conftest.py",
+    "/app/test_reports/pytest/pytest_results.xml",
+    "/app/test_reports/pytest/pytest_v21.xml"
+  ],
+  "action_items": [
+    "(Optional) Persist auto-downgrade side-effect completely: server.py:194-197 sets plan=free/status=expired but leaves plan_expires_at populated and plan_billing dangling. Consider also unsetting plan_billing on auto-expiry for consistency with the cancel branch that sets both to None.",
+    "(Optional, from iteration_1) Fix latent marks-upsert `id=None` risk if the id write logic is ever moved back into $set. Currently the code uses $setOnInsert correctly for id — keep it that way and add a guard test writing marks twice for the same (exam_id, student_user_id) to lock it in.",
+    "(Optional) reminder-prefs GET returns only the two known keys; if new keys are ever added, ensure DEFAULT_REMINDER_PREFS stays authoritative (the merge order `{**DEFAULT_REMINDER_PREFS, **saved}` is correct today)."
+  ],
+  "critical_code_review_comments": [
+    "server.py is now ~1450 lines; splitting into routers (auth, teacher, fees, subscription, reminders, exams) would help maintainability but is not urgent.",
+    "The auto-downgrade branch (server.py:187-199) writes to DB inside a GET handler — acceptable for a mock/small deployment but consider moving to a background job for scale.",
+    "run_reminders performs one notify + two count queries per fee_month; for large teachers this is O(N) round-trips. Consider batching or using insert-with-ordered=false and catching DuplicateKeyError to count fired via BulkWriteResult.",
+    "payment_service.RazorpayPaymentProvider is a stub — verify_payment/handle_webhook must be implemented AND signature-verified before enabling PAYMENT_PROVIDER=razorpay.",
+    "compute_status uses month_key() comparison on string month `YYYY-MM` — lexicographic ordering is correct for this format; keep the format stable."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_feemat_v2_1.py (new — 29 tests)",
+    "/app/backend/tests/test_feemat_v2.py (added autouse pro-upgrade fixture in TestHomework + cancel-before-free-check in TestSubscription.test_get_default_free, to accommodate V2.1 Pro gates)"
+  ],
+  "success_rate": {"backend": "100% (84/84 — 55 V2 regression + 29 V2.1)", "frontend": "not tested (skipped per request)"},
+  "seed_data_creation": "Per-run fresh accounts (tf_v21{ts}, tp_v21{ts}, tx_v21{ts}, st_v21{ts}, ty_v21{ts}, tr_v21{ts}). Two direct MongoDB writes: one past-dated fee_month (month=2024-01) used for overdue-off assertion, one direct notifications insert used for dedup uniqueness assertion. Both are namespaced to freshly-created test users and do not touch pre-existing data.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Run with `pytest -n 0` (or accept default `-n 2 --dist loadscope`). Full backend suite: `pytest /app/backend/tests -n 0` — takes ~3.5 min. New V2.1 suite alone: `pytest /app/backend/tests/test_feemat_v2_1.py -n 0` — ~75s. If Pro gates are ever loosened, TestProGates402.* will fail; if reminder-prefs merge regresses (defaults dropped on partial PUT), test_reminder_prefs_defaults_and_partial_put_merge will fail; if auto-downgrade regresses, test_expired_plan_auto_downgrades_and_data_intact will fail. The user-directed emphasis points (partial-PUT merge, auto-downgrade, data survival across cancel/expiry) all pass — no fixes required.",
+  "rca_of_issue": "No V2.1 bugs found. Two V2-regression items surfaced due to the intentional contract change (homework/exams/reports/announcements → Pro-only); these are not bugs but test-drift and were fixed by adding a class-scope autouse upgrade fixture in TestHomework and a cancel-before-check in TestSubscription.test_get_default_free. The previously-buggy reminder-prefs partial PUT (defaults being dropped) is verified FIXED: `set_reminder_prefs` now merges `DEFAULT_REMINDER_PREFS` with the persisted prefs before applying the partial update (server.py:1401), so `enabled_due:true` is retained when the client PUTs only `enabled_overdue:false`. Confirmed via GET-after-PUT and via response body of the PUT itself."
+}

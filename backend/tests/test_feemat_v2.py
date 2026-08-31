@@ -501,6 +501,12 @@ class TestTaxonomy:
 
 # =============== 10. Homework with target filtering =============
 class TestHomework:
+    @pytest.fixture(autouse=True)
+    def _ensure_pro(self, ctx):
+        # V2.1: homework/exams/reports/announcements now require Pro.
+        requests.post(f"{API}/teacher/subscription/upgrade",
+                      headers=_h(ctx["teacher_token"]), json={"billing": "monthly"})
+
     def test_homework_all_target(self, ctx):
         r = requests.post(f"{API}/teacher/homework", headers=_h(ctx["teacher_token"]),
                           json={"title": "HW1", "description": "chapter1",
@@ -571,6 +577,8 @@ class TestReports:
 # =============== 14. Subscription =====================
 class TestSubscription:
     def test_get_default_free(self, ctx):
+        # V2.1: TestHomework upgraded teacher to Pro. Cancel first so this checks a Free state.
+        requests.post(f"{API}/teacher/subscription/cancel", headers=_h(ctx["teacher_token"]))
         r = requests.get(f"{API}/teacher/subscription", headers=_h(ctx["teacher_token"])).json()
         assert r["plan"] == "free"
         assert r["free_limit"] == 30
