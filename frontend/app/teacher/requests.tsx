@@ -1,6 +1,6 @@
 import React, { useCallback, useState } from "react";
-import { View, Text, StyleSheet, FlatList, Pressable, ActivityIndicator } from "react-native";
-import { useFocusEffect } from "expo-router";
+import { View, Text, StyleSheet, FlatList, Pressable, ActivityIndicator, Alert } from "react-native";
+import { useFocusEffect, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { COLORS, SPACING, RADIUS } from "@/src/lib/theme";
@@ -17,19 +17,16 @@ type Req = {
 
 export default function RequestsScreen() {
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const [items, setItems] = useState<Req[]>([]);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
-    try {
-      const d = await api<Req[]>("/requests/incoming");
-      setItems(d);
-    } catch {}
+    try { setItems(await api<Req[]>("/requests/incoming")); } catch {}
     setLoading(false);
   }, []);
-
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
   const act = async (id: string, action: "accept" | "reject") => {
@@ -38,10 +35,14 @@ export default function RequestsScreen() {
       await api(`/requests/${id}/${action}`, { method: "POST" });
       setItems((prev) => prev.filter((r) => r.id !== id));
     } catch (e: any) {
-      // swallow; a toast could be added
-    } finally {
-      setBusyId(null);
-    }
+      const msg = String(e?.message || "");
+      if (msg.includes("Free plan limit")) {
+        Alert.alert("Free Plan Limit Reached", msg, [
+          { text: "Cancel", style: "cancel" },
+          { text: "Upgrade to Pro", onPress: () => router.push("/teacher/subscription") },
+        ]);
+      }
+    } finally { setBusyId(null); }
   };
 
   return (
@@ -50,15 +51,14 @@ export default function RequestsScreen() {
         <Text style={styles.title}>Student Requests</Text>
         <Text style={styles.sub}>Approve or decline join requests.</Text>
       </View>
-      {loading ? (
-        <View style={styles.center}><ActivityIndicator color={COLORS.brand} /></View>
-      ) : items.length === 0 ? (
+      {loading ? <View style={styles.center}><ActivityIndicator color={COLORS.brand} /></View> :
+       items.length === 0 ? (
         <View style={styles.center}>
           <Ionicons name="mail-open-outline" size={56} color={COLORS.borderStrong} />
           <Text style={styles.empty}>No pending requests</Text>
           <Text style={styles.emptySub}>Share your Teacher ID with students to receive requests.</Text>
         </View>
-      ) : (
+       ) : (
         <FlatList
           data={items}
           keyExtractor={(i) => i.id}
@@ -74,27 +74,17 @@ export default function RequestsScreen() {
                 </View>
               </View>
               <View style={styles.actions}>
-                <Pressable
-                  testID={`request-reject-${item.id}`}
-                  style={[styles.actBtn, styles.reject]}
-                  disabled={busyId === item.id}
-                  onPress={() => act(item.id, "reject")}
-                >
+                <Pressable testID={`request-reject-${item.id}`} style={[styles.actBtn, styles.reject]} disabled={busyId === item.id} onPress={() => act(item.id, "reject")}>
                   <Text style={styles.rejectTxt}>Reject</Text>
                 </Pressable>
-                <Pressable
-                  testID={`request-accept-${item.id}`}
-                  style={[styles.actBtn, styles.accept]}
-                  disabled={busyId === item.id}
-                  onPress={() => act(item.id, "accept")}
-                >
+                <Pressable testID={`request-accept-${item.id}`} style={[styles.actBtn, styles.accept]} disabled={busyId === item.id} onPress={() => act(item.id, "accept")}>
                   <Text style={styles.acceptTxt}>Accept</Text>
                 </Pressable>
               </View>
             </View>
           )}
         />
-      )}
+       )}
     </View>
   );
 }

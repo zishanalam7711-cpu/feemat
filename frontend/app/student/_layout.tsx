@@ -11,7 +11,7 @@ export default function StudentLayout() {
         tabBarActiveTintColor: COLORS.brand,
         tabBarInactiveTintColor: COLORS.muted,
         tabBarLabelStyle: { fontSize: 11, fontWeight: "600" },
-        tabBarStyle: { borderTopColor: COLORS.border },
+        tabBarStyle: { borderTopColor: COLORS.border, height: 62, paddingBottom: 8, paddingTop: 6 },
       }}
     >
       <Tabs.Screen name="index" options={{ title: "Home", tabBarIcon: ({ color, size }) => <Ionicons name="home" size={size} color={color} /> }} />
@@ -20,6 +20,9 @@ export default function StudentLayout() {
       <Tabs.Screen name="profile" options={{ title: "Profile", tabBarIcon: ({ color, size }) => <Ionicons name="person-circle" size={size} color={color} /> }} />
       <Tabs.Screen name="teacher/[teacherId]" options={{ href: null }} />
       <Tabs.Screen name="fee" options={{ href: null }} />
+      <Tabs.Screen name="homework" options={{ href: null }} />
+      <Tabs.Screen name="results" options={{ href: null }} />
+      <Tabs.Screen name="receipt/[receiptNumber]" options={{ href: null }} />
     </Tabs>
   );
 }

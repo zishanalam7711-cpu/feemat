@@ -10,10 +10,12 @@ import { Avatar } from "@/src/components/Avatar";
 type Item = {
   id: string;
   admission_number: string;
-  total_fee: number;
-  paid: number;
-  advance: number;
+  monthly_fee: number;
+  total_billed: number;
+  paid_all: number;
   due: number;
+  advance: number;
+  active: boolean;
   student: { name?: string; class?: string; phone?: string; photo_url?: string };
 };
 
@@ -22,7 +24,7 @@ export default function StudentsScreen() {
   const router = useRouter();
   const [items, setItems] = useState<Item[]>([]);
   const [q, setQ] = useState("");
-  const [filter, setFilter] = useState<"all" | "due" | "paid">("all");
+  const [filter, setFilter] = useState<"all" | "due" | "paid" | "inactive">("all");
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
@@ -53,9 +55,9 @@ export default function StudentsScreen() {
           />
         </View>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: SPACING.sm, paddingVertical: SPACING.sm }}>
-          {(["all", "due", "paid"] as const).map((f) => (
-            <Pressable key={f} onPress={() => setFilter(f)} style={[styles.chip, filter === f && styles.chipOn]}>
-              <Text style={[styles.chipTxt, filter === f && styles.chipTxtOn]}>{f === "all" ? "All" : f === "due" ? "Due" : "Fully Paid"}</Text>
+          {(["all", "due", "paid", "inactive"] as const).map((f) => (
+            <Pressable key={f} testID={`filter-${f}`} onPress={() => setFilter(f)} style={[styles.chip, filter === f && styles.chipOn]}>
+              <Text style={[styles.chipTxt, filter === f && styles.chipTxtOn]}>{f === "all" ? "All" : f === "due" ? "With Due" : f === "paid" ? "Fully Paid" : "Inactive"}</Text>
             </Pressable>
           ))}
         </ScrollView>
@@ -76,17 +78,18 @@ export default function StudentsScreen() {
           renderItem={({ item }) => (
             <Pressable
               testID={`student-row-${item.admission_number}`}
-              style={styles.row}
+              style={[styles.row, item.active === false && { opacity: 0.55 }]}
               onPress={() => router.push(`/teacher/student/${item.id}`)}
             >
               <Avatar name={item.student?.name} uri={item.student?.photo_url} />
               <View style={{ flex: 1 }}>
                 <Text style={styles.rowName}>{item.student?.name || "Student"}</Text>
                 <Text style={styles.rowMeta}>{item.admission_number} • {item.student?.class || "—"}</Text>
+                <Text style={styles.rowMeta}>Monthly {inr(item.monthly_fee)} • Billed {inr(item.total_billed)}</Text>
               </View>
               <View style={{ alignItems: "flex-end" }}>
                 <Text style={item.due > 0 ? styles.due : styles.paid}>{item.due > 0 ? inr(item.due) : "Paid"}</Text>
-                <Text style={styles.rowMeta}>{inr(item.paid)} / {inr(item.total_fee)}</Text>
+                <Text style={styles.rowMeta}>Paid {inr(item.paid_all)}</Text>
               </View>
             </Pressable>
           )}

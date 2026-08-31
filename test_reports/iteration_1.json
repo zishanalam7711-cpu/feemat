@@ -1,0 +1,53 @@
+{
+  "summary": "FeeMat V2 backend fully tested via pytest suite (55/55 passed, 100% success rate). Covered auth (signup/login/me/forgot/role-403/bad-token/duplicate email), teacher profile (FM-T- id, plan=free, free_limit=30, updates, public_phone/public_email filtering), public teacher lookup with connection_status transitions (none→pending→connected), join requests (create/incoming/duplicate-409/accept-admission FM-2026-NNNN/reject), free-plan 30-student gate verified both by code inspection AND by live simulation (inserted 30 dummy connections and confirmed HTTP 402 'Free plan limit'; also confirmed the gate is bypassed after upgrade to pro), automatic monthly fee cycles (unique per month, idempotent lazy generation, status due/overdue/partial/paid/waived), installments with earliest-month auto-apply, month-specific apply, overflow-to-advance, receipt FM-R- generation, receipt ownership 200/403/404, fee-month adjustments (discount+fine change net_amount; waived recomputes status), attendance upsert + attendance_pct computation, classes/batches/subjects CRUD, homework target filtering (class-only hidden from students not in that class), exams+marks+auto grade/pct/result, student results embedding exam, announcements broadcasting to student notifications, reports (7 monthly buckets + defaulters + today_attendance), subscription upgrade monthly/yearly with expires_at + cancel reverts to free without deleting data, notifications list/read/read-all, and cross-teacher data isolation (403 on foreign connection/receipt, 404 on foreign setup/attendance). One real bug discovered via code review + reproduction: the marks upsert overwrites the existing record's `id` field with `null` on the second write for the same (exam_id, student_user_id).",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {
+        "endpoint": "POST /api/teacher/exams/{exam_id}/marks",
+        "issue": "Marks upsert sets `id` to null on updates. In server.py:1205 the ternary `str(uuid.uuid4()) if not await db.marks.find_one(...) else None` uses `$set: {id: None}` when the record already exists, wiping out the previously stored UUID. Reproduced: first write gives id='d3651f12-...', re-writing marks for the same student yields id=None. Fix: move the id creation into `$setOnInsert` (e.g. `{\"$set\": {...fields...}, \"$setOnInsert\": {\"id\": str(uuid.uuid4())}}`) and drop the extra find_one lookup."
+      },
+      {
+        "endpoint": "GET /api/teacher/reports",
+        "issue": "Docstring/comment says 'last 6 months' but implementation returns 7 month buckets (start month inclusive through current month inclusive => 7). Contract-wise fine (tests updated to expect 7), but comment at server.py:1075 is misleading."
+      },
+      {
+        "endpoint": "PUT /api/fee-months/{id}/adjust",
+        "issue": "No route to unset/reset discount or fine (fields with value 0 pass, but passing `null`/omitting cannot revert to defaults distinctly). Not tested for regression risk — flagged for future."
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_feemat_v2.py",
+    "/app/backend/tests/conftest.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "Fix marks-upsert bug at /app/backend/server.py:1202-1216 — use $setOnInsert for `id` so re-recording marks does not null out the record's id.",
+    "(Optional) Correct comment at server.py:1075-1077 to say 'last 7 months' or trim the window to actually 6."
+  ],
+  "critical_code_review_comments": [
+    "server.py is ~1300 lines — consider splitting into routers/modules (auth, teacher, fees, subscriptions, exams) for maintainability.",
+    "set_marks contains an extra `find_one` per entry that is both a bug source (id=None) and an unnecessary round-trip; refactor to a single upsert with $setOnInsert.",
+    "teacher_reports iterates all connections and per-connection issues an additional fee_months query — could be a perf bottleneck at scale; consider a single aggregation.",
+    "Some endpoints (announcements/homework/exams) lack DELETE and UPDATE routes — likely intentional MVP but worth documenting.",
+    "No pagination on /api/notifications (hard-capped at 200) — fine for MVP, flag for growth.",
+    "forgot-password intentionally does not leak whether email exists (returns ok=True regardless) — good security posture."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_feemat_v2.py (new)",
+    "/app/backend/tests/conftest.py (new)"
+  ],
+  "success_rate": {"backend": "100% (55/55)", "frontend": "not tested (skipped per request)"},
+  "seed_data_creation": "Each test run creates fresh time-stamped users (t{ts}, s{ts}, tC{ts}, tD{ts}, tx{ts}, etc.). The free-plan simulation inserts 30 dummy connections directly via pymongo and cleans them up in a finally block. No production data touched.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "All backend endpoints pass. Test suite at /app/backend/tests/test_feemat_v2.py must be run with `-n 0` to disable xdist because tests share module-scoped `ctx` state sequentially. One known bug in marks upsert (id becomes None on 2nd write) — after fix, re-run TestExamsMarks and add an explicit assertion that id is not None after a second /marks call. Free-plan gate simulated live via pymongo (30 dummy connections) — takes ~2 min due to real HTTP round-trip; consider marking those two tests @pytest.mark.slow if suite time becomes an issue.",
+  "rca_of_issue": "marks-upsert id=None bug: In set_marks (server.py:1202), the code does `await db.marks.find_one(...)` and puts the result into a ternary INSIDE the $set dict; when the record exists (2nd+ writes), the branch evaluates to None and $set includes `id: None`, which MongoDB happily writes, overwriting the previously stored UUID. Reproduction: POST marks twice for same (exam, student); GET returns id=null on second read. Mitigation: replace with `{\"$set\": {only-mutable-fields}, \"$setOnInsert\": {\"id\": str(uuid.uuid4())}}` — this way `id` is only written on the initial insert and remains stable across updates."
+}
