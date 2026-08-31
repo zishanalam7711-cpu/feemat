@@ -1,0 +1,204 @@
+{
+  "app_name": "FeeMat",
+  "personality": "1 iOS-Native Clean",
+  "personality_one_liner": "A premium, high-end SaaS education platform balancing professional utility with modern iOS-native elegance.",
+  "color": {
+    "surface": "#FFFFFF",
+    "onSurface": "#0F172A",
+    "surfaceSecondary": "#F8FAFC",
+    "onSurfaceSecondary": "#334155",
+    "surfaceTertiary": "#F1F5F9",
+    "onSurfaceTertiary": "#475569",
+    "surfaceInverse": "#0F172A",
+    "onSurfaceInverse": "#F8FAFC",
+    "brand": "#7C3AED",
+    "brandPrimary": "#7C3AED",
+    "onBrandPrimary": "#FFFFFF",
+    "brandSecondary": "#F9A8D4",
+    "onBrandSecondary": "#831843",
+    "brandTertiary": "#93C5FD",
+    "onBrandTertiary": "#1E3A8A",
+    "success": "#10B981",
+    "onSuccess": "#FFFFFF",
+    "warning": "#F59E0B",
+    "onWarning": "#FFFFFF",
+    "error": "#EF4444",
+    "onError": "#FFFFFF",
+    "info": "#3B82F6",
+    "onInfo": "#FFFFFF",
+    "border": "#E2E8F0",
+    "borderStrong": "#CBD5E1",
+    "divider": "#F1F5F9",
+    "dark": {
+      "surface": "#0F172A",
+      "onSurface": "#F8FAFC",
+      "surfaceSecondary": "#1E293B",
+      "onSurfaceSecondary": "#CBD5E1",
+      "surfaceTertiary": "#334155",
+      "onSurfaceTertiary": "#94A3B8",
+      "surfaceInverse": "#FFFFFF",
+      "onSurfaceInverse": "#0F172A",
+      "brand": "#8B5CF6",
+      "brandPrimary": "#8B5CF6",
+      "onBrandPrimary": "#FFFFFF",
+      "brandSecondary": "#FBCFE8",
+      "onBrandSecondary": "#831843",
+      "brandTertiary": "#BFDBFE",
+      "onBrandTertiary": "#1E3A8A",
+      "success": "#10B981",
+      "onSuccess": "#0F172A",
+      "warning": "#F59E0B",
+      "onWarning": "#0F172A",
+      "error": "#EF4444",
+      "onError": "#FFFFFF",
+      "info": "#3B82F6",
+      "onInfo": "#FFFFFF",
+      "border": "#334155",
+      "borderStrong": "#475569",
+      "divider": "#1E293B"
+    }
+  },
+  "typography": {
+    "displayFontFamily": "Plus Jakarta Sans",
+    "textFontFamily": "Geist",
+    "scale": {
+      "sm": 12,
+      "base": 14,
+      "lg": 16,
+      "xl": 20,
+      "2xl": 24
+    }
+  },
+  "spacing": {
+    "rule": "Generous vertical breathing room. Cards never flush to screen edges; always use md or lg margin.",
+    "xs": 4,
+    "sm": 8,
+    "md": 12,
+    "lg": 16,
+    "xl": 24,
+    "2xl": 32,
+    "3xl": 48
+  },
+  "radius_tokens": {
+    "sm": 6,
+    "md": 12,
+    "lg": 20,
+    "pill": 999
+  },
+  "shadow_tier": 1,
+  "navigation": "bottom_tabs",
+  "icon_set": "Phosphor",
+  "glassmorphism": {
+    "enabled": true,
+    "do's": [
+      "Use on sticky headers over scrolling content",
+      "Use on bottom tab bars",
+      "Use on featured/hero KPI cards paired with abstract gradient backgrounds"
+    ],
+    "dont's": [
+      "Do not apply to standard list rows",
+      "Do not apply to form inputs",
+      "Do not use if the blur compromises text readability (always pair with translucent tint base)"
+    ]
+  },
+  "platform_libraries": {
+    "glass": {
+      "ios": "expo-glass-effect",
+      "android": "expo-blur",
+      "low_end_android_fallback": "solid surfaceSecondary"
+    },
+    "image": "expo-image",
+    "blur": "expo-blur",
+    "bottom_sheet": "@gorhom/bottom-sheet",
+    "animation": "react-native-reanimated",
+    "gesture": "react-native-gesture-handler"
+  },
+  "screens": [
+    {
+      "name": "PortalChooser",
+      "purpose": "A polished onboarding gateway allowing the user to seamlessly choose between Teacher and Student profiles.",
+      "states": {
+        "loading": "Subtle skeleton loaders for buttons",
+        "empty": "N/A",
+        "error": "Standard alert toast"
+      },
+      "layout": "Full-bleed background using the brand gradient. Two prominent, touch-friendly cards (Teacher / Student) stacked vertically in the lower half of the screen, utilizing glassmorphism over the background. Clear typography and distinct Phosphor icons per card."
+    },
+    {
+      "name": "TeacherDashboard",
+      "purpose": "High-level overview of the institute/teacher's metrics, prominently displaying total fees, collections, and active student count.",
+      "states": {
+        "loading": "Shimmer effect on KPI cards",
+        "empty": "Illustration of an empty folder with 'No students added yet' and an 'Add Student' CTA",
+        "error": "Error card with a retry button centered on screen"
+      },
+      "layout": "Header with Teacher Profile Avatar and Name. A featured hero KPI card (using glass over a purple/pink gradient background) for Total Fees & Due. A 2-column grid below for secondary metrics (Total Students, Pending Requests). Quick action row (icons inside brandTertiary rounded squares) for adding installments or marking attendance."
+    },
+    {
+      "name": "StudentDirectory",
+      "purpose": "A searchable, filterable list of all enrolled students for quick access to their fee details.",
+      "states": {
+        "loading": "List of skeleton rows with avatar circles",
+        "empty": "Empty state abstract illustration with 'No students found'",
+        "error": "Readable error message with a 'Try Again' button"
+      },
+      "layout": "Sticky header with a search bar and filter chips (All, Defaulters, Paid). The list utilizes minimum 56pt tappable height rows, each containing a student avatar, name, class, and a right-aligned fee status badge. A floating action button (FAB) for adding a new student."
+    },
+    {
+      "name": "StudentFeeDetail",
+      "purpose": "Detailed view of a single student's fee structure, payment history, and attendance.",
+      "states": {
+        "loading": "Skeleton UI replicating the exact structure of the profile and cards",
+        "empty": "N/A - Data is expected to be present if the screen is reached",
+        "error": "Retry boundary card"
+      },
+      "layout": "Top section features the student's profile info. A prominent 'Fee Progress Bar' showing Total vs Paid vs Due. A list of installments below in an accordion or stacked cards. At the bottom, sticky CTAs for 'Add Installment' (triggers a bottom sheet), 'Mark Attendance', and a secondary 'WhatsApp Reminder' button."
+    },
+    {
+      "name": "StudentHome",
+      "purpose": "A student-centric dashboard showing connected teacher info, personal fee summary, and recent notifications.",
+      "states": {
+        "loading": "Spinner centered with a soft fade",
+        "empty": "Illustration indicating 'No connected teacher yet' with a prominent 'Search Teacher by ID' CTA",
+        "error": "Error card prompting a reload"
+      },
+      "layout": "Personalized header welcoming the student. A dedicated 'Connected Teacher' card with their profile picture and dynamic status. Below that, a horizontal swipeable section or a clean vertical stack showing the personal Fee Summary card (Total/Paid/Due) and an Attendance history ring. A floating 'Notifications' bell icon in the header."
+    },
+    {
+      "name": "TeacherProfileStudentView",
+      "purpose": "Allows students to view a teacher's full profile and connect via the unique Teacher ID.",
+      "states": {
+        "loading": "Skeleton for teacher cover and avatar",
+        "empty": "Teacher not found illustration",
+        "error": "Error text with retry button"
+      },
+      "layout": "Large cover banner using a subtle purple gradient. Teacher avatar overlapping the banner. Clean layout for institute details. A sticky, bottom-anchored 'Dynamic Connect Button' (states: Request, Sent, Connected) accessible immediately without scrolling."
+    }
+  ],
+  "images": {
+    "abstract_gradient_bg": {
+      "url": "https://images.unsplash.com/photo-1635776063043-ab23b4c226f6?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzMzN8MHwxfHNlYXJjaHwyfHxhYnN0cmFjdCUyMHNvZnQlMjBwdXJwbGUlMjBwaW5rJTIwZ3JhZGllbnQlMjBiYWNrZ3JvdW5kfGVufDB8fHx8MTc4NDg4MTY2N3ww&ixlib=rb-4.1.0&q=85",
+      "dark": "https://images.pexels.com/photos/31032752/pexels-photo-31032752.jpeg",
+      "alt": "abstract soft purple pink gradient background"
+    },
+    "empty_state_abstract": {
+      "url": "https://images.unsplash.com/photo-1622547748225-3fc4abd2cca0?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NTYxOTJ8MHwxfHNlYXJjaHwxfHxhYnN0cmFjdCUyMGVtcHR5JTIwc3RhdGUlMjBtb2Rlcm4lMjBpbGx1c3RyYXRpb258ZW58MHx8fHwxNzgyOTc1ODIyfDA&ixlib=rb-4.1.0&q=85",
+      "dark": "https://images.unsplash.com/photo-1536311312982-31ed42ebc0f0?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NTYxOTJ8MHwxfHNlYXJjaHwzfHxhYnN0cmFjdCUyMGVtcHR5JTIwc3RhdGUlMjBtb2Rlcm4lMjBpbGx1c3RyYXRpb258ZW58MHx8fHwxNzgyOTc1ODIyfDA&ixlib=rb-4.1.0&q=85",
+      "alt": "Modern abstract empty state illustration"
+    },
+    "student_avatar_fallback": {
+      "url": "https://images.pexels.com/photos/12944972/pexels-photo-12944972.jpeg",
+      "alt": "young student portrait smiling isolated"
+    }
+  },
+  "instructions_to_main_agent": [
+    "Strictly follow the color palette. Note: I have OVERRIDDEN the ban on Purple because the user's problem statement explicitly required 'Purple as the primary brand color' and 'Soft pink/blue gradient accents'.",
+    "Adopt the iOS-Native Clean (1) personality, which means comfortable vertical spacing, generous padding around content, md/lg radii, and a subtle shadow tier (1).",
+    "Emphasize the use of glassmorphism selectively (e.g., sticky headers, tab bars, hero KPI cards). Use a translucent tint base beneath the blur to guarantee readability as described in the glassmorphism rules.",
+    "For cards on the Teacher Dashboard, utilize the 2-column grid rule correctly: 'flexDirection: row', 'flexWrap: wrap', 'justifyContent: space-between', and precise width calculations factoring in gaps and screen padding.",
+    "Always pin primary CTAs to the bottom of the screen above the home indicator when they are critical (e.g., Dynamic Connect button, Add Installment). Do not hide them inside scrolling content.",
+    "Implement real empty states, loading skeletons, and error screens as specified. Empty states must fill the screen and use the provided abstract illustration.",
+    "Do not use generic 'blue' default links or buttons; exclusively use the defined brand colors.",
+    "Haptics: Ensure subtle haptic feedback on tab changes, primary buttons, and interactions like 'Accept/Reject Student Request' or 'Add Installment'."
+  ]
+}
