@@ -3,7 +3,7 @@
   "main": "expo-router/entry",
   "version": "1.0.0",
   "scripts": {
-    "preinstall": "./scripts/cmd-guard.js --preinstall",
+    "preinstall": "node ./scripts/cmd-guard.js --preinstall",
     "start": "expo start",
     "reset-project": "node ./scripts/reset-project.js",
     "android": "expo start --android",
@@ -11,7 +11,7 @@
     "web": "expo start --web",
     "lint": "expo lint"
   },
-  "dependencies": {
+  "dependencies": { 
     "@expo/metro-runtime": "6.1.2",
     "@expo/vector-icons": "15.1.1",
     "@react-native-async-storage/async-storage": "2.2.0",
