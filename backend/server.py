@@ -1198,6 +1198,195 @@ async def teacher_reports(user: dict = Depends(require_pro())):
     return {"monthly_collection": monthly_series, "today_attendance": today_att, "defaulters": defaulters[:20]}
 
 
+@api.get("/teacher/reports/advanced")
+async def teacher_reports_advanced(user: dict = Depends(require_pro())):
+    """Advanced analytics in one call: overview, fees, attendance, exams and students needing attention."""
+    uid = user["id"]
+    today = now_utc().date()
+    cur = month_key(today)
+    py, pm = (today.year - 1, 12) if today.month == 1 else (today.year, today.month - 1)
+    prev = f"{py:04d}-{pm:02d}"
+
+    conns = [clean(c) async for c in db.connections.find({"teacher_user_id": uid, "active": {"$ne": False}})]
+    for c in conns:
+        try:
+            await ensure_fee_months(c)
+        except Exception:
+            pass
+    class_name = {c["id"]: c.get("name", "") async for c in db.classes.find({"teacher_user_id": uid})}
+    stu = {s["user_id"]: s async for s in db.students.find({"user_id": {"$in": [c["student_user_id"] for c in conns]}})}
+    conn_by_student = {c["student_user_id"]: c for c in conns}
+
+    def info(c: dict) -> dict:
+        s = stu.get(c["student_user_id"]) or {}
+        return {
+            "connection_id": c["id"],
+            "name": s.get("name", ""),
+            "admission_number": c.get("admission_number", ""),
+            "phone": s.get("phone", ""),
+            "class_name": class_name.get(c.get("class_id")) or "No class",
+        }
+
+    # ---------- fees ----------
+    fee_by_conn: dict[str, list] = {}
+    async for f in db.fee_months.find({"teacher_user_id": uid}):
+        fee_by_conn.setdefault(f["connection_id"], []).append(f)
+    total_billed = 0.0
+    total_paid = 0.0
+    total_due = 0.0
+    due_by_conn: dict[str, float] = {}
+    pending_months: dict[str, int] = {}
+    defaulters = []
+    for c in conns:
+        fms = sorted(fee_by_conn.get(c["id"], []), key=lambda f: f["month"])
+        billed = sum(net_amount(f) for f in fms)
+        paid = sum(float(f.get("paid") or 0) for f in fms)
+        pending = [f for f in fms if net_amount(f) - float(f.get("paid") or 0) > 0.01]
+        due = sum(net_amount(f) - float(f.get("paid") or 0) for f in pending)
+        total_billed += billed
+        total_paid += min(paid, billed)
+        total_due += due
+        due_by_conn[c["id"]] = due
+        pending_months[c["id"]] = len(pending)
+        if due > 0.01:
+            defaulters.append({**info(c), "due": round(due, 2), "pending_months": len(pending), "oldest_month": pending[0]["month"]})
+    defaulters.sort(key=lambda x: -x["due"])
+    collection_rate = round(min(total_paid / total_billed * 100, 100), 1) if total_billed > 0 else 0.0
+
+    inst = [i async for i in db.installments.find({"teacher_user_id": uid}, {"amount": 1, "method": 1, "date": 1})]
+    by_month: dict[str, float] = {}
+    methods: dict[str, float] = {}
+    today_amt = 0.0
+    for i in inst:
+        d = str(i.get("date", ""))
+        amt = float(i.get("amount") or 0)
+        by_month[d[:7]] = by_month.get(d[:7], 0.0) + amt
+        if d[:7] == cur:
+            mth = i.get("method") or "Other"
+            methods[mth] = methods.get(mth, 0.0) + amt
+        if d[:10] == today.isoformat():
+            today_amt += amt
+    sy, sm = today.year, today.month - 5
+    while sm <= 0:
+        sm += 12
+        sy -= 1
+    series = [{"month": m, "amount": round(by_month.get(m, 0.0), 2)} for m in month_iter(f"{sy:04d}-{sm:02d}", cur)]
+
+    cls: dict[str, dict] = {}
+    for c in conns:
+        cn = class_name.get(c.get("class_id")) or "No class"
+        e = cls.setdefault(cn, {"class": cn, "students": 0, "due": 0.0})
+        e["students"] += 1
+        e["due"] = round(e["due"] + due_by_conn.get(c["id"], 0.0), 2)
+    class_pending = sorted(cls.values(), key=lambda x: -x["due"])
+
+    # ---------- attendance (this month) ----------
+    att_by_conn: dict[str, dict] = {}
+    days: set[str] = set()
+    async for a in db.attendance.find({"teacher_user_id": uid, "date": {"$regex": f"^{cur}-"}}):
+        e = att_by_conn.setdefault(a["connection_id"], {"present": 0, "absent": 0, "late": 0, "leave": 0})
+        if a.get("status") in e:
+            e[a["status"]] += 1
+        days.add(a["date"])
+    att_rows = []
+    for c in conns:
+        e = att_by_conn.get(c["id"])
+        if not e:
+            continue
+        total = sum(e.values())
+        if total == 0:
+            continue
+        att_rows.append({**info(c), "pct": round((e["present"] + e["late"]) / total * 100, 1), "total": total, "absent": e["absent"]})
+    att_avg = round(sum(r["pct"] for r in att_rows) / len(att_rows), 1) if att_rows else 0.0
+    low = sorted([r for r in att_rows if r["pct"] < 75], key=lambda r: r["pct"])[:20]
+    regular = sorted([r for r in att_rows if r["total"] >= 3], key=lambda r: -r["pct"])[:5]
+    by_class_att: dict[str, list] = {}
+    for r in att_rows:
+        by_class_att.setdefault(r["class_name"], []).append(r["pct"])
+    att_by_class = sorted(
+        [{"class": k, "avg": round(sum(v) / len(v), 1)} for k, v in by_class_att.items()], key=lambda x: x["avg"]
+    )
+    att_by_conn_row = {r["connection_id"]: r for r in att_rows}
+
+    # ---------- exams ----------
+    exams = [clean(e) async for e in db.exams.find({"teacher_user_id": uid}).sort("exam_date", 1)]
+    marks_by_exam: dict[str, list] = {}
+    marks_by_student: dict[str, list] = {}
+    async for m in db.marks.find({"teacher_user_id": uid}):
+        marks_by_exam.setdefault(m["exam_id"], []).append(m)
+        marks_by_student.setdefault(m["student_user_id"], []).append(m)
+    trend = []
+    subj: dict[str, list] = {}
+    for e in exams:
+        ms = marks_by_exam.get(e["id"], [])
+        if not ms:
+            continue
+        avg = sum(x["percentage"] for x in ms) / len(ms)
+        passn = sum(1 for x in ms if x["result"] == "pass")
+        trend.append({
+            "title": e["title"], "subject": e.get("subject") or "", "date": e.get("exam_date", ""),
+            "avg": round(avg, 1), "pass_pct": round(passn / len(ms) * 100), "n": len(ms),
+        })
+        subj.setdefault(e.get("subject") or "General", []).extend([x["percentage"] for x in ms])
+    subjects = sorted([{"subject": k, "avg": round(sum(v) / len(v), 1)} for k, v in subj.items()], key=lambda x: x["avg"])
+    repeat_fail = []
+    toppers = []
+    exam_stats: dict[str, tuple] = {}
+    for suid, ms in marks_by_student.items():
+        c = conn_by_student.get(suid)
+        if not c:
+            continue
+        fails = sum(1 for x in ms if x["result"] == "fail")
+        avgp = round(sum(x["percentage"] for x in ms) / len(ms), 1)
+        exam_stats[suid] = (fails, avgp)
+        base = info(c)
+        if fails >= 2:
+            repeat_fail.append({**base, "fails": fails})
+        toppers.append({**base, "avg": avgp, "exams": len(ms)})
+    repeat_fail.sort(key=lambda x: -x["fails"])
+    toppers.sort(key=lambda x: -x["avg"])
+
+    # ---------- students needing attention ----------
+    attention = []
+    for c in conns:
+        reasons = []
+        ar = att_by_conn_row.get(c["id"])
+        if ar and ar["total"] >= 3 and ar["pct"] < 75:
+            reasons.append(f"Attendance {ar['pct']}%")
+        pmn = pending_months.get(c["id"], 0)
+        if pmn >= 2:
+            reasons.append(f"{pmn} mahine ki fees baaki")
+        es = exam_stats.get(c["student_user_id"])
+        if es and es[0] >= 2:
+            reasons.append(f"{es[0]} exam mein fail")
+        elif es and es[1] < 40:
+            reasons.append(f"Exam average {es[1]}%")
+        if reasons:
+            attention.append({**info(c), "reasons": reasons})
+    attention.sort(key=lambda x: -len(x["reasons"]))
+
+    return {
+        "month": cur,
+        "overview": {
+            "students": len(conns),
+            "total_due": round(total_due, 2),
+            "collected_month": round(by_month.get(cur, 0.0), 2),
+            "collected_prev": round(by_month.get(prev, 0.0), 2),
+            "collected_today": round(today_amt, 2),
+            "collection_rate": collection_rate,
+            "attendance_avg": att_avg,
+            "last_exam_avg": trend[-1]["avg"] if trend else None,
+        },
+        "monthly_collection": series,
+        "methods": {k: round(v, 2) for k, v in methods.items()},
+        "class_pending": class_pending,
+        "defaulters": defaulters[:100],
+        "attendance": {"avg": att_avg, "days_marked": len(days), "low": low, "regular": regular, "by_class": att_by_class},
+        "exams": {"trend": trend, "subjects": subjects, "repeat_fail": repeat_fail[:20], "toppers": toppers[:5]},
+        "attention": attention[:20],
+    }
+
+
 # ---------- homework (Pro) ----------
 @api.post("/teacher/homework")
 async def create_homework(data: HomeworkIn, user: dict = Depends(require_pro())):
