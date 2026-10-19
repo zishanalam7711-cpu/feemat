@@ -1043,6 +1043,51 @@ async def mark_attendance(connection_id: str, data: AttendanceIn, user: dict = D
     return {"ok": True}
 
 
+@api.get("/teacher/attendance")
+async def attendance_by_date(date: str, user: dict = Depends(require_role("teacher"))):
+    """Ek din ki saved attendance: {connection_id: status}."""
+    ids = [c["id"] async for c in db.connections.find({"teacher_user_id": user["id"]}, {"id": 1})]
+    out: dict[str, str] = {}
+    async for a in db.attendance.find({"connection_id": {"$in": ids}, "date": date}):
+        out[a["connection_id"]] = a["status"]
+    return out
+
+
+@api.get("/teacher/attendance/report")
+async def attendance_report(month: str, user: dict = Depends(require_role("teacher"))):
+    """Mahine ki attendance report (month = YYYY-MM): har student ke present/absent/late/leave aur %."""
+    import re
+    if not re.fullmatch(r"\d{4}-\d{2}", month):
+        raise HTTPException(400, "month must be YYYY-MM")
+    conns = [c async for c in db.connections.find({"teacher_user_id": user["id"], "active": {"$ne": False}})]
+    by_conn: dict[str, list] = {}
+    async for a in db.attendance.find({"teacher_user_id": user["id"], "date": {"$regex": f"^{month}-"}}):
+        by_conn.setdefault(a["connection_id"], []).append(a)
+    days_marked: set[str] = set()
+    items = []
+    for c in conns:
+        recs = by_conn.get(c["id"], [])
+        cnt = {"present": 0, "absent": 0, "late": 0, "leave": 0}
+        for r in recs:
+            if r.get("status") in cnt:
+                cnt[r["status"]] += 1
+            days_marked.add(r["date"])
+        total = len(recs)
+        pct = round(((cnt["present"] + cnt["late"]) / total) * 100, 1) if total else 0.0
+        stu = await db.students.find_one({"user_id": c["student_user_id"]}) or {}
+        items.append({
+            "connection_id": c["id"],
+            "name": stu.get("name", ""),
+            "admission_number": c.get("admission_number", ""),
+            "phone": stu.get("phone", ""),
+            **cnt,
+            "total": total,
+            "pct": pct,
+        })
+    items.sort(key=lambda x: (x["total"] == 0, x["pct"]))
+    return {"month": month, "days_marked": len(days_marked), "items": items}
+
+
 # ---------- notifications ----------
 @api.get("/notifications")
 async def list_notifications(user: dict = Depends(current_user)):
