@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { COLORS, SPACING, RADIUS } from "@/src/lib/theme";
 import { api } from "@/src/lib/api";
 import { Avatar } from "@/src/components/Avatar";
+import { PhotoPicker } from "@/src/components/PhotoPicker";
 import { Input } from "@/src/components/Input";
 import { Button } from "@/src/components/Button";
 import { useAuth } from "@/src/lib/auth";
@@ -49,7 +50,7 @@ export default function StudentProfile() {
           <Input label="Phone" value={s.phone || ""} onChangeText={(v) => patch("phone", v)} keyboardType="phone-pad" />
           <Input label="Class / Course" value={s.class || ""} onChangeText={(v) => patch("class", v)} />
           <Input label="Address" value={s.address || ""} onChangeText={(v) => patch("address", v)} multiline />
-          <Input label="Photo URL" value={s.photo_url || ""} onChangeText={(v) => patch("photo_url", v)} autoCapitalize="none" />
+          <PhotoPicker label="Profile Photo" name={s.name} value={s.photo_url} onChange={(v) => patch("photo_url", v)} />
         </View>
         <View style={{ padding: SPACING.lg, gap: SPACING.md }}>
           <Button testID="save-student-profile" title="Save Profile" loading={saving} onPress={save} />
