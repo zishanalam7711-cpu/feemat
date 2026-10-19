@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable, RefreshControl, ActivityIndicator } from "react-native";
+import { View, Text, StyleSheet, ScrollView, Pressable, RefreshControl, ActivityIndicator, Alert } from "react-native";
 import { useFocusEffect, useRouter } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
@@ -17,16 +17,34 @@ const DARK = {
   muted: "rgba(255,255,255,0.45)",
 };
 
-const QUICK_COLORS: Record<string, string> = {
-  Students: "#A855F7",
-  Classes: "#F59E0B",
-  Homework: "#3B82F6",
-  Exams: "#10B981",
-  Reports: "#EC4899",
-  Announce: "#8B5CF6",
-  Pricing: "#06B6D4",
-  Profile: "#38BDF8",
+type Opt = {
+  label: string;
+  icon: keyof typeof Ionicons.glyphMap;
+  color: string;
+  route?: string;
+  soon?: string;
+  badge?: "requests";
 };
+
+// 16 options. Jo screens abhi nahi bani unme `soon` hai (Coming Soon).
+const OPTIONS: Opt[] = [
+  { label: "Students", icon: "people", color: "#A855F7", route: "/teacher/students" },
+  { label: "Classes", icon: "school", color: "#F59E0B", route: "/teacher/classes" },
+  { label: "Fees", icon: "wallet", color: "#3B82F6", route: "/teacher/students" },
+  { label: "Collect", icon: "cash", color: "#22C55E", route: "/teacher/collect" },
+  { label: "Attendance", icon: "checkmark-done-circle", color: "#14B8A6", route: "/teacher/attendance" },
+  { label: "Homework", icon: "clipboard", color: "#60A5FA", route: "/teacher/homework" },
+  { label: "Exams", icon: "document-text", color: "#10B981", route: "/teacher/exams" },
+  { label: "Results", icon: "trophy", color: "#FBBF24", route: "/teacher/exams" },
+  { label: "Reports", icon: "bar-chart", color: "#EC4899", route: "/teacher/reports" },
+  { label: "Announce", icon: "megaphone", color: "#8B5CF6", route: "/teacher/announcements" },
+  { label: "Alerts", icon: "notifications", color: "#F97316", route: "/teacher/notifications" },
+  { label: "Timetable", icon: "calendar", color: "#38BDF8", soon: "Timetable jaldi aa raha hai." },
+  { label: "UPI Pay", icon: "qr-code", color: "#34D399", soon: "UPI QR aur online fees jaldi aa raha hai." },
+  { label: "Requests", icon: "mail-unread", color: "#F472B6", route: "/teacher/requests", badge: "requests" },
+  { label: "Pro Plan", icon: "rocket", color: "#06B6D4", route: "/teacher/subscription" },
+  { label: "Profile", icon: "person-circle", color: "#A78BFA", route: "/teacher/profile" },
+];
 
 export default function TeacherDashboard() {
   const insets = useSafeAreaInsets();
@@ -44,6 +62,11 @@ export default function TeacherDashboard() {
   const s = data?.stats;
   const plan = data?.plan;
   const isPro = plan?.plan === "pro";
+
+  const open = (o: Opt) => {
+    if (o.route) router.push(o.route as any);
+    else Alert.alert("Coming Soon", o.soon || "Ye feature jaldi aa raha hai.");
+  };
 
   return (
     <ScrollView
@@ -104,24 +127,28 @@ export default function TeacherDashboard() {
       <View style={styles.grid}>
         <StatCard testID="stat-students" title="Active" value={String(s?.active_students ?? 0)} icon="people" color="#A855F7" onPress={() => router.push("/teacher/students")} />
         <StatCard testID="stat-requests" title="Requests" value={String(s?.pending_requests ?? 0)} icon="mail-unread" color="#EC4899" onPress={() => router.push("/teacher/requests")} />
-        <StatCard title="Today Att." value={String(s?.today_attendance ?? 0)} icon="checkmark-done" color="#10B981" />
+        <StatCard title="Today Att." value={String(s?.today_attendance ?? 0)} icon="checkmark-done" color="#10B981" onPress={() => router.push("/teacher/attendance")} />
         <StatCard title="Total Fee" value={inr(s?.total_fee)} icon="wallet" color="#3B82F6" />
       </View>
 
       <View style={styles.sectRow}>
         <Text style={styles.sect}>Quick Actions</Text>
       </View>
-      <View style={styles.quickWrap}>
-        <QuickBtn label="Students" icon="people" onPress={() => router.push("/teacher/students")} />
-        <QuickBtn label="Classes" icon="school" onPress={() => router.push("/teacher/classes")} />
-        <QuickBtn label="Homework" icon="clipboard" onPress={() => router.push("/teacher/homework")} />
-        <QuickBtn label="Exams" icon="document-text" onPress={() => router.push("/teacher/exams")} />
-      </View>
-      <View style={styles.quickWrap}>
-        <QuickBtn label="Reports" icon="bar-chart" onPress={() => router.push("/teacher/reports")} />
-        <QuickBtn label="Announce" icon="megaphone" onPress={() => router.push("/teacher/announcements")} />
-        <QuickBtn label="Pricing" icon="rocket" onPress={() => router.push("/teacher/subscription")} />
-        <QuickBtn label="Profile" icon="person-circle" onPress={() => router.push("/teacher/profile")} />
+      <View style={styles.optGrid}>
+        {OPTIONS.map((o) => (
+          <Pressable key={o.label} style={styles.optCell} onPress={() => open(o)}>
+            <View style={styles.quickBtn}>
+              <View style={[styles.quickIcon, { backgroundColor: o.color + "26" }]}>
+                <Ionicons name={o.icon} size={20} color={o.color} />
+                {o.badge === "requests" && (s?.pending_requests ?? 0) > 0 && (
+                  <View style={styles.badge}><Text style={styles.badgeTxt}>{s.pending_requests}</Text></View>
+                )}
+                {o.soon && <View style={styles.soonDot} />}
+              </View>
+              <Text style={styles.quickLbl} numberOfLines={1}>{o.label}</Text>
+            </View>
+          </Pressable>
+        ))}
       </View>
     </ScrollView>
   );
@@ -148,17 +175,6 @@ function StatCard({ title, value, icon, color, onPress, testID }: any) {
     </Pressable>
   );
 }
-function QuickBtn({ label, icon, onPress }: any) {
-  const color = QUICK_COLORS[label] || "#A855F7";
-  return (
-    <Pressable onPress={onPress} style={styles.quickBtn}>
-      <View style={[styles.quickIcon, { backgroundColor: color + "26" }]}>
-        <Ionicons name={icon} size={20} color={color} />
-      </View>
-      <Text style={styles.quickLbl}>{label}</Text>
-    </Pressable>
-  );
-}
 
 const styles = StyleSheet.create({
   center: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: DARK.bg },
@@ -176,10 +192,7 @@ const styles = StyleSheet.create({
   planTxt: { color: "#fff", fontWeight: "800", fontSize: 11 },
   heroCard: { marginTop: SPACING.xl, padding: SPACING.lg, borderRadius: RADIUS.lg, backgroundColor: "rgba(255,255,255,0.14)" },
   heroCardTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  walletIcon: {
-    width: 48, height: 48, borderRadius: 16, alignItems: "center", justifyContent: "center",
-    backgroundColor: "rgba(255,255,255,0.18)",
-  },
+  walletIcon: { width: 48, height: 48, borderRadius: 16, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(255,255,255,0.18)" },
   heroLabel: { color: "rgba(255,255,255,0.9)", fontSize: 13 },
   heroValue: { color: "#fff", fontSize: 34, fontWeight: "800", marginTop: 4 },
   heroRow: { flexDirection: "row", marginTop: SPACING.lg, gap: SPACING.md },
@@ -195,8 +208,12 @@ const styles = StyleSheet.create({
   statValue: { fontSize: 17, fontWeight: "800", color: DARK.textPrimary },
   sectRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: SPACING.xl, marginTop: SPACING.md },
   sect: { fontSize: 14, fontWeight: "800", color: DARK.textSecondary, textTransform: "uppercase", letterSpacing: 0.5 },
-  quickWrap: { flexDirection: "row", gap: SPACING.sm, paddingHorizontal: SPACING.md, marginTop: SPACING.md },
-  quickBtn: { flex: 1, alignItems: "center", backgroundColor: DARK.card, padding: SPACING.md, borderRadius: RADIUS.md, borderWidth: 1, borderColor: DARK.cardBorder },
+  optGrid: { flexDirection: "row", flexWrap: "wrap", paddingHorizontal: SPACING.sm, marginTop: SPACING.sm },
+  optCell: { width: "25%", padding: 4 },
+  quickBtn: { alignItems: "center", backgroundColor: DARK.card, paddingVertical: SPACING.md, paddingHorizontal: 4, borderRadius: RADIUS.md, borderWidth: 1, borderColor: DARK.cardBorder },
   quickIcon: { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
   quickLbl: { marginTop: 6, fontSize: 11, color: DARK.textPrimary, fontWeight: "600" },
+  badge: { position: "absolute", top: -6, right: -6, minWidth: 16, height: 16, borderRadius: 8, paddingHorizontal: 4, backgroundColor: "#EF4444", alignItems: "center", justifyContent: "center" },
+  badgeTxt: { color: "#fff", fontSize: 10, fontWeight: "800" },
+  soonDot: { position: "absolute", top: -3, right: -3, width: 8, height: 8, borderRadius: 4, backgroundColor: "#F59E0B" },
 });

@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { COLORS, SPACING, RADIUS } from "@/src/lib/theme";
 import { api } from "@/src/lib/api";
 import { Avatar } from "@/src/components/Avatar";
+import { PhotoPicker } from "@/src/components/PhotoPicker";
 import { Input } from "@/src/components/Input";
 import { Button } from "@/src/components/Button";
 import { useAuth } from "@/src/lib/auth";
@@ -65,7 +66,7 @@ export default function TeacherProfileScreen() {
           <Text style={styles.sectTitle}>Personal</Text>
           <Input testID="p-name" label="Name" value={t.name || ""} onChangeText={(v) => patch("name", v)} />
           <Input label="Phone" value={t.phone || ""} onChangeText={(v) => patch("phone", v)} keyboardType="phone-pad" />
-          <Input label="Photo URL" value={t.photo_url || ""} onChangeText={(v) => patch("photo_url", v)} autoCapitalize="none" />
+          <PhotoPicker label="Profile Photo" name={t.name} value={t.photo_url} onChange={(v) => patch("photo_url", v)} />
           <Input label="Qualification" value={t.qualification || ""} onChangeText={(v) => patch("qualification", v)} />
           <Input label="Experience" value={t.experience || ""} onChangeText={(v) => patch("experience", v)} />
           <Input label="About / Bio" value={t.bio || ""} onChangeText={(v) => patch("bio", v)} multiline />
@@ -90,8 +91,8 @@ export default function TeacherProfileScreen() {
 
         <View style={styles.section}>
           <Text style={styles.sectTitle}>Payment</Text>
-          <Input label="UPI ID" value={t.upi_id || ""} onChangeText={(v) => patch("upi_id", v)} autoCapitalize="none" />
-          <Input label="QR Image URL" value={t.qr_url || ""} onChangeText={(v) => patch("qr_url", v)} autoCapitalize="none" />
+          <Input label="UPI ID / UPI Number" value={t.upi_id || ""} onChangeText={(v) => patch("upi_id", v)} autoCapitalize="none" />
+          <PhotoPicker label="Payment QR Code" shape="square" size={150} value={t.qr_url} onChange={(v) => patch("qr_url", v)} hint="PhonePe / GPay / Paytm ka QR (screenshot bhi chalega). Chuno, phir Save dabao." />
         </View>
 
         <View style={styles.section}>
