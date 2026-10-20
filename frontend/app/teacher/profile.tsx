@@ -7,6 +7,7 @@ import { COLORS, SPACING, RADIUS } from "@/src/lib/theme";
 import { api } from "@/src/lib/api";
 import { Avatar } from "@/src/components/Avatar";
 import { PhotoPicker } from "@/src/components/PhotoPicker";
+import { ChangePasswordCard } from "@/src/components/ChangePasswordCard";
 import { Input } from "@/src/components/Input";
 import { Button } from "@/src/components/Button";
 import { useAuth } from "@/src/lib/auth";
@@ -114,6 +115,7 @@ export default function TeacherProfileScreen() {
 
         <View style={{ padding: SPACING.lg, gap: SPACING.md }}>
           <Button testID="save-profile-btn" title="Save Changes" loading={saving} onPress={save} />
+          <ChangePasswordCard />
           <Button testID="logout-btn" title="Log Out" variant="secondary" onPress={async () => { await signOut(); router.replace("/"); }} />
         </View>
       </ScrollView>
