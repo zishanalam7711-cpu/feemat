@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, Modal, KeyboardAvoidingView, Platform, Linking } from "react-native";
+import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, Modal, KeyboardAvoidingView, Platform, Linking, Share } from "react-native";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -133,6 +133,28 @@ export default function StudentDetail() {
             {c.discount_pct > 0 && <Text style={styles.pill}>{c.discount_pct}% off</Text>}
           </View>
         </View>
+
+        {c.managed && c.claim_code ? (
+          <View style={[styles.card, { borderWidth: 1, borderColor: "#FCD34D", backgroundColor: "#FFFBEB" }]}>
+            <Text style={styles.sect}>App ke bina student</Text>
+            <Text style={styles.meta}>Student ko ye code do. Wo app mein Student Sign Up ke time daalega to ye saara record uske account mein aa jayega.</Text>
+            <Text selectable style={{ fontSize: 28, fontWeight: "800", letterSpacing: 4, color: "#B45309", marginVertical: SPACING.sm }}>{c.claim_code}</Text>
+            <View style={{ flexDirection: "row", gap: SPACING.sm }}>
+              <Pressable
+                onPress={() => Share.share({ message: `Namaste ${s.name}, FeeMat app mein Student Sign Up karte waqt ye code daalo: ${c.claim_code}\nIsse aapki fees, attendance aur marks aapke account mein aa jayenge.` })}
+                style={{ flex: 1, height: 40, borderRadius: RADIUS.md, backgroundColor: COLORS.brand, alignItems: "center", justifyContent: "center" }}
+              >
+                <Text style={{ color: "#fff", fontWeight: "700" }}>Code share karo</Text>
+              </Pressable>
+              <Pressable
+                onPress={async () => { try { await api(`/connections/${id}/regenerate-code`, { method: "POST" }); await load(); } catch {} }}
+                style={{ paddingHorizontal: 14, height: 40, borderRadius: RADIUS.md, backgroundColor: COLORS.surfaceSecondary, alignItems: "center", justifyContent: "center" }}
+              >
+                <Text style={{ color: COLORS.onSurfaceSecondary, fontWeight: "700" }}>Naya code</Text>
+              </Pressable>
+            </View>
+          </View>
+        ) : null}
 
         <View style={styles.card}>
           <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
