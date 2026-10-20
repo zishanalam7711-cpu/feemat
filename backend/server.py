@@ -1,8 +1,15 @@
 """FeeMat backend — FastAPI + MongoDB + JWT auth (V2)."""
 from __future__ import annotations
 
+import asyncio
+import hashlib
+import hmac
+import json
 import logging
 import os
+import secrets
+import time
+import urllib.request
 import uuid
 from contextlib import asynccontextmanager
 from datetime import date, datetime, timedelta, timezone
@@ -25,7 +32,26 @@ load_dotenv(ROOT_DIR / ".env")
 
 MONGO_URL = os.environ["MONGO_URL"]
 DB_NAME = os.environ.get("DB_NAME", "feemat")
-JWT_SECRET = os.environ.get("JWT_SECRET", "feemat-dev-secret-change-in-prod-please-9f2a")
+# JWT secret comes from the environment. If it is missing we create a random one and keep it in the database
+# (see lifespan) -- we never fall back to a secret that is written in the source code.
+JWT_SECRET = os.environ.get("JWT_SECRET", "")
+
+# ---------- email (Brevo HTTPS API; Render free blocks SMTP ports) ----------
+BREVO_API_KEY = os.environ.get("BREVO_API_KEY", "")
+MAIL_FROM_EMAIL = os.environ.get("MAIL_FROM_EMAIL", "")
+MAIL_FROM_NAME = os.environ.get("MAIL_FROM_NAME", "FeeMat")
+
+# ---------- auth hardening ----------
+LOGIN_MAX_FAILS = 5
+LOGIN_LOCK_MIN = 15
+OTP_TTL_MIN = 10
+OTP_MAX_ATTEMPTS = 5
+OTP_RESEND_SEC = 60
+OTP_MAX_PER_HOUR = 5
+COMMON_PASSWORDS = {
+    "password", "password1", "password123", "12345678", "123456789", "1234567890", "qwerty123", "qwertyuiop",
+    "abc12345", "iloveyou1", "feemat123", "feemat1234", "admin123", "welcome1", "letmein123", "11111111", "00000000",
+}
 JWT_ALG = "HS256"
 JWT_TTL_MIN = 60 * 24 * 30
 
@@ -42,6 +68,20 @@ db = client[DB_NAME]
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    global JWT_SECRET
+    await db.app_config.create_index("key", unique=True)
+    if not JWT_SECRET:
+        doc = await db.app_config.find_one({"key": "jwt_secret"})
+        if not doc:
+            try:
+                await db.app_config.insert_one({"key": "jwt_secret", "value": secrets.token_urlsafe(64)})
+            except Exception:
+                pass
+            doc = await db.app_config.find_one({"key": "jwt_secret"})
+        JWT_SECRET = doc["value"]
+        logging.getLogger("feemat").warning("JWT_SECRET env not set: using a random secret stored in the database. Set JWT_SECRET on Render for extra safety.")
+    await db.login_attempts.create_index("email", unique=True)
+    await db.password_resets.create_index("email", unique=True)
     await db.users.create_index("email", unique=True)
     await db.teachers.create_index("teacher_id", unique=True)
     await db.teachers.create_index("user_id", unique=True)
@@ -165,6 +205,11 @@ async def current_user(creds: HTTPAuthorizationCredentials = Depends(bearer)) ->
     user = await db.users.find_one({"id": payload["sub"]})
     if not user:
         raise HTTPException(401, "User not found")
+    if user.get("managed"):
+        raise HTTPException(401, "Invalid account")
+    changed = user.get("pw_changed_at")
+    if changed and int(payload.get("iat", 0)) < int(changed):
+        raise HTTPException(401, "Password badal gaya hai, dobara login karo")
     return user
 
 
@@ -216,7 +261,7 @@ async def count_active_students(teacher_user_id: str) -> int:
 # ---------- schemas ----------
 class SignupIn(BaseModel):
     email: EmailStr
-    password: str = Field(min_length=6, max_length=128)
+    password: str = Field(min_length=1, max_length=128)
     name: str = Field(min_length=1, max_length=80)
     role: Role
     claim_code: Optional[str] = None
@@ -245,11 +290,22 @@ class ClaimIn(BaseModel):
 class LoginIn(BaseModel):
     email: EmailStr
     password: str
+    role: Optional[Role] = None
 
 
 class ForgotIn(BaseModel):
     email: EmailStr
-    new_password: str = Field(min_length=6)
+
+
+class ResetIn(BaseModel):
+    email: EmailStr
+    otp: str = Field(min_length=4, max_length=10)
+    new_password: str = Field(min_length=1, max_length=128)
+
+
+class ChangePasswordIn(BaseModel):
+    current_password: str
+    new_password: str = Field(min_length=1, max_length=128)
 
 
 class TeacherProfileIn(BaseModel):
@@ -487,6 +543,7 @@ async def root():
 @api.post("/auth/signup")
 async def signup(data: SignupIn):
     email = data.email.lower()
+    check_password_strength(data.password)
     if await db.users.find_one({"email": email}):
         raise HTTPException(409, "Email already registered")
     claim_code = _norm_code(data.claim_code) if data.role == "student" else ""
@@ -530,21 +587,174 @@ async def signup(data: SignupIn):
     return out
 
 
+def check_password_strength(pw: str) -> None:
+    if len(pw) < 8:
+        raise HTTPException(400, "Password kam se kam 8 akshar ka hona chahiye")
+    if len(pw.encode()) > 72:
+        raise HTTPException(400, "Password bahut lamba hai (zyada se zyada 72 akshar)")
+    if not any(ch.isalpha() for ch in pw) or not any(ch.isdigit() for ch in pw):
+        raise HTTPException(400, "Password mein kam se kam ek letter aur ek number hona chahiye")
+    if pw.lower() in COMMON_PASSWORDS:
+        raise HTTPException(400, "Ye password bahut aam hai, koi aur password chuno")
+
+
+_DUMMY_HASH = hash_pw("feemat-dummy-password-for-timing")
+
+
+async def _check_login_lock(email: str) -> None:
+    rec = await db.login_attempts.find_one({"email": email})
+    if rec and rec.get("locked_until") and rec["locked_until"] > now_utc().isoformat():
+        left = datetime.fromisoformat(rec["locked_until"]) - now_utc()
+        mins = max(1, int(left.total_seconds() // 60) + 1)
+        raise HTTPException(429, f"Bahut zyada galat koshish. {mins} minute baad dobara try karo, ya Forgot Password se OTP lo.")
+
+
+async def _register_login_fail(email: str) -> None:
+    now = now_utc()
+    rec = await db.login_attempts.find_one({"email": email})
+    if rec and rec.get("first_at") and rec["first_at"] > (now - timedelta(minutes=LOGIN_LOCK_MIN)).isoformat():
+        count = int(rec.get("count", 0)) + 1
+        first_at = rec["first_at"]
+    else:
+        count = 1
+        first_at = now.isoformat()
+    upd: dict[str, Any] = {"email": email, "count": count, "first_at": first_at, "locked_until": None}
+    if count >= LOGIN_MAX_FAILS:
+        upd.update({"count": 0, "first_at": now.isoformat(), "locked_until": (now + timedelta(minutes=LOGIN_LOCK_MIN)).isoformat()})
+    await db.login_attempts.update_one({"email": email}, {"$set": upd}, upsert=True)
+
+
 @api.post("/auth/login")
 async def login(data: LoginIn):
-    user = await db.users.find_one({"email": data.email.lower()})
-    if not user or not verify_pw(data.password, user["password_hash"]):
-        raise HTTPException(401, "Invalid email or password")
+    email = data.email.lower()
+    await _check_login_lock(email)
+    user = await db.users.find_one({"email": email})
+    if user and not user.get("managed"):
+        ok = verify_pw(data.password, user["password_hash"])
+    else:
+        verify_pw(data.password, _DUMMY_HASH)  # same time for unknown emails
+        ok = False
+    if not ok:
+        await _register_login_fail(email)
+        raise HTTPException(401, "Email ya password galat hai")
+    if data.role and user["role"] != data.role:
+        # right password, wrong portal: do NOT log in
+        actual = "Teacher" if user["role"] == "teacher" else "Student"
+        raise HTTPException(403, f"Ye {actual} account hai. Kripya {actual} portal se login karo.")
+    await db.login_attempts.delete_one({"email": email})
     token = make_token(user["id"], user["role"])
     return {"token": token, "user": {"id": user["id"], "email": user["email"], "role": user["role"], "name": user["name"]}}
 
 
+def mail_configured() -> bool:
+    return bool(BREVO_API_KEY and MAIL_FROM_EMAIL)
+
+
+async def send_email(to: str, subject: str, html: str) -> bool:
+    def _send() -> bool:
+        body = json.dumps({
+            "sender": {"name": MAIL_FROM_NAME, "email": MAIL_FROM_EMAIL},
+            "to": [{"email": to}],
+            "subject": subject,
+            "htmlContent": html,
+        }).encode()
+        req = urllib.request.Request(
+            "https://api.brevo.com/v3/smtp/email", data=body, method="POST",
+            headers={"api-key": BREVO_API_KEY, "content-type": "application/json", "accept": "application/json"},
+        )
+        with urllib.request.urlopen(req, timeout=15) as r:
+            return 200 <= r.status < 300
+    try:
+        return await asyncio.to_thread(_send)
+    except Exception:
+        logging.getLogger("feemat").exception("send_email failed")
+        return False
+
+
+def _otp_hash(email: str, otp: str) -> str:
+    return hashlib.sha256(f"{JWT_SECRET}:{email}:{otp}".encode()).hexdigest()
+
+
 @api.post("/auth/forgot-password")
 async def forgot(data: ForgotIn):
-    user = await db.users.find_one({"email": data.email.lower()})
-    if user:
-        await db.users.update_one({"id": user["id"]}, {"$set": {"password_hash": hash_pw(data.new_password)}})
+    """Step 1: email a 6 digit OTP. Always answers the same way, so nobody can find out which emails exist."""
+    if not mail_configured():
+        raise HTTPException(503, "Email service abhi set nahi hai. App ke admin se sampark karo.")
+    email = data.email.lower()
+    generic = {"ok": True, "message": f"Agar ye email registered hai to 6 digit OTP bhej diya gaya hai. {OTP_TTL_MIN} minute ke andar use karo."}
+    user = await db.users.find_one({"email": email})
+    if not user or user.get("managed"):
+        return generic
+    now = now_utc()
+    rec = await db.password_resets.find_one({"email": email}) or {}
+    sent = [t for t in rec.get("sent_log", []) if t > (now - timedelta(hours=1)).isoformat()]
+    if sent and (now - datetime.fromisoformat(sent[-1])).total_seconds() < OTP_RESEND_SEC:
+        return generic
+    if len(sent) >= OTP_MAX_PER_HOUR:
+        return generic
+    otp = "".join(secrets.choice("0123456789") for _ in range(6))
+    sent.append(now.isoformat())
+    await db.password_resets.update_one(
+        {"email": email},
+        {"$set": {
+            "email": email, "otp_hash": _otp_hash(email, otp), "attempts": 0,
+            "expires_at": (now + timedelta(minutes=OTP_TTL_MIN)).isoformat(), "sent_log": sent,
+        }},
+        upsert=True,
+    )
+    html = (
+        f"<div style='font-family:Arial,sans-serif;max-width:420px'>"
+        f"<h2 style='color:#5B21B6'>FeeMat password reset</h2>"
+        f"<p>Aapka OTP:</p>"
+        f"<p style='font-size:32px;font-weight:bold;letter-spacing:6px'>{otp}</p>"
+        f"<p>Ye {OTP_TTL_MIN} minute tak chalega. Agar aapne ye request nahi ki, to is email ko ignore karo aur kisi ko OTP mat batao.</p>"
+        f"</div>"
+    )
+    await send_email(email, "FeeMat password reset OTP", html)
+    return generic
+
+
+@api.post("/auth/reset-password")
+async def reset_password(data: ResetIn):
+    """Step 2: OTP + new password."""
+    email = data.email.lower()
+    check_password_strength(data.new_password)
+    bad = HTTPException(400, "OTP galat hai ya expire ho gaya hai")
+    rec = await db.password_resets.find_one({"email": email})
+    if not rec:
+        raise bad
+    if rec["expires_at"] < now_utc().isoformat():
+        await db.password_resets.delete_one({"email": email})
+        raise bad
+    if int(rec.get("attempts", 0)) >= OTP_MAX_ATTEMPTS:
+        await db.password_resets.delete_one({"email": email})
+        raise HTTPException(429, "Bahut zyada galat OTP. Naya OTP maango.")
+    if not hmac.compare_digest(rec["otp_hash"], _otp_hash(email, data.otp.strip())):
+        await db.password_resets.update_one({"email": email}, {"$inc": {"attempts": 1}})
+        raise bad
+    user = await db.users.find_one({"email": email})
+    if not user or user.get("managed"):
+        raise bad
+    await db.users.update_one(
+        {"id": user["id"]},
+        {"$set": {"password_hash": hash_pw(data.new_password), "pw_changed_at": int(time.time())}},
+    )
+    await db.password_resets.delete_one({"email": email})
+    await db.login_attempts.delete_one({"email": email})
     return {"ok": True}
+
+
+@api.post("/auth/change-password")
+async def change_password(data: ChangePasswordIn, user: dict = Depends(current_user)):
+    """Logged-in user changes password. Old sessions on other phones stop working; this phone gets a new token."""
+    check_password_strength(data.new_password)
+    if not verify_pw(data.current_password, user["password_hash"]):
+        raise HTTPException(400, "Abhi ka password galat hai")
+    if data.current_password == data.new_password:
+        raise HTTPException(400, "Naya password purane jaisa nahi ho sakta")
+    now_ts = int(time.time())
+    await db.users.update_one({"id": user["id"]}, {"$set": {"password_hash": hash_pw(data.new_password), "pw_changed_at": now_ts}})
+    return {"ok": True, "token": make_token(user["id"], user["role"])}
 
 
 @api.get("/auth/me")
