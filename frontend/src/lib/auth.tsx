@@ -6,7 +6,7 @@ export type User = { id: string; email: string; role: "teacher" | "student"; nam
 type Ctx = {
   user: User | null;
   loading: boolean;
-  signIn: (email: string, password: string) => Promise<User>;
+  signIn: (email: string, password: string, role?: "teacher" | "student") => Promise<User>;
   signUp: (email: string, password: string, name: string, role: "teacher" | "student", claimCode?: string) => Promise<any>;
   signOut: () => Promise<void>;
   refresh: () => Promise<void>;
@@ -40,10 +40,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     })();
   }, [refresh]);
 
-  const signIn = useCallback(async (email: string, password: string) => {
+  const signIn = useCallback(async (email: string, password: string, role?: "teacher" | "student") => {
     const res = await api<{ token: string; user: User }>("/auth/login", {
       method: "POST",
-      body: { email, password },
+      body: { email, password, role },
       auth: false,
     });
     await saveToken(res.token);
