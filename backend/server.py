@@ -219,6 +219,27 @@ class SignupIn(BaseModel):
     password: str = Field(min_length=6, max_length=128)
     name: str = Field(min_length=1, max_length=80)
     role: Role
+    claim_code: Optional[str] = None
+
+
+class ManualStudentIn(BaseModel):
+    name: str = Field(min_length=1, max_length=80)
+    father_name: Optional[str] = ""
+    phone: Optional[str] = ""
+    class_name: Optional[str] = Field(default="", alias="class")
+    address: Optional[str] = ""
+    photo_url: Optional[str] = ""
+    class_id: Optional[str] = None
+    batch_id: Optional[str] = None
+    monthly_fee: float = Field(default=0, ge=0)
+    discount_pct: float = Field(default=0, ge=0, le=100)
+    joined_on: Optional[str] = None  # YYYY-MM-DD
+    class Config:
+        populate_by_name = True
+
+
+class ClaimIn(BaseModel):
+    code: str
 
 
 class LoginIn(BaseModel):
@@ -468,6 +489,9 @@ async def signup(data: SignupIn):
     email = data.email.lower()
     if await db.users.find_one({"email": email}):
         raise HTTPException(409, "Email already registered")
+    claim_code = _norm_code(data.claim_code) if data.role == "student" else ""
+    if claim_code and not await db.connections.find_one({"claim_code": claim_code, "managed": True}):
+        raise HTTPException(400, "Ye code galat hai ya pehle hi use ho chuka hai. Teacher se dobara pucho, ya code khali chhod do.")
     uid = str(uuid.uuid4())
     await db.users.insert_one(
         {"id": uid, "email": email, "password_hash": hash_pw(data.password),
@@ -495,7 +519,15 @@ async def signup(data: SignupIn):
              "email": email, "created_at": now_utc().isoformat()}
         )
     token = make_token(uid, data.role)
-    return {"token": token, "user": {"id": uid, "email": email, "role": data.role, "name": data.name}}
+    out = {"token": token, "user": {"id": uid, "email": email, "role": data.role, "name": data.name}}
+    if claim_code:
+        try:
+            await _claim_student(uid, claim_code)
+            out["claimed"] = True
+        except HTTPException as e:
+            out["claimed"] = False
+            out["claim_error"] = e.detail
+    return out
 
 
 @api.post("/auth/login")
@@ -625,6 +657,146 @@ async def create_request(data: JoinRequestIn, user: dict = Depends(require_role(
 async def incoming_requests(user: dict = Depends(require_role("teacher"))):
     cur = db.join_requests.find({"teacher_user_id": user["id"], "status": "pending"}).sort("created_at", -1)
     return [clean(d) async for d in cur]
+
+
+# ---------- students without the app (teacher adds them) + claim code ----------
+CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"
+
+
+def _norm_code(code: Optional[str]) -> str:
+    return "".join(ch for ch in str(code or "").upper() if ch.isalnum())
+
+
+async def _new_claim_code() -> str:
+    import secrets
+    for _ in range(10):
+        code = "".join(secrets.choice(CODE_ALPHABET) for _ in range(8))
+        if not await db.connections.find_one({"claim_code": code}):
+            return code
+    raise HTTPException(500, "Code nahi ban paaya, dobara try karo")
+
+
+@api.post("/teacher/students/manual")
+async def add_student_manually(data: ManualStudentIn, user: dict = Depends(require_role("teacher"))):
+    """Teacher adds a student who has no app account. Everything works like a normal student;
+    the student can later sign up with the claim code and all records move to the new account."""
+    plan = await teacher_plan(user["id"])
+    if plan["plan"] == "free":
+        active = await count_active_students(user["id"])
+        if active >= FREE_STUDENT_LIMIT:
+            raise HTTPException(402, f"Free plan limit reached ({FREE_STUDENT_LIMIT} active students). Upgrade to Pro for unlimited.")
+    if data.class_id and not await db.classes.find_one({"id": data.class_id, "teacher_user_id": user["id"]}):
+        raise HTTPException(400, "Class nahi mili")
+    if data.batch_id and not await db.batches.find_one({"id": data.batch_id, "teacher_user_id": user["id"]}):
+        raise HTTPException(400, "Batch nahi mila")
+    joined = now_utc().isoformat()
+    if data.joined_on:
+        try:
+            joined = datetime.fromisoformat(data.joined_on[:10]).replace(tzinfo=timezone.utc).isoformat()
+        except Exception:
+            raise HTTPException(400, "Joining date galat hai (YYYY-MM-DD)")
+    import secrets
+    uid = str(uuid.uuid4())
+    name = data.name.strip()
+    now = now_utc().isoformat()
+    # placeholder account: cannot log in (random password, fake email)
+    await db.users.insert_one({
+        "id": uid, "email": f"managed-{uid}@feemat.invalid", "password_hash": hash_pw(secrets.token_urlsafe(24)),
+        "role": "student", "name": name, "managed": True, "managed_by": user["id"], "created_at": now,
+    })
+    await db.students.insert_one({
+        "id": str(uuid.uuid4()), "user_id": uid, "name": name, "father_name": data.father_name or "",
+        "phone": data.phone or "", "class": data.class_name or "", "address": data.address or "",
+        "photo_url": data.photo_url or "", "email": "", "managed": True, "created_at": now,
+    })
+    teacher = await db.teachers.find_one({"user_id": user["id"]}) or {}
+    admission = await next_admission_number(user["id"])
+    code = await _new_claim_code()
+    conn = {
+        "id": str(uuid.uuid4()), "student_user_id": uid, "teacher_user_id": user["id"],
+        "teacher_id_code": teacher.get("teacher_id", ""), "admission_number": admission,
+        "total_fee": 0.0, "paid": 0.0, "advance": 0.0,
+        "monthly_fee": float(data.monthly_fee), "discount_pct": float(data.discount_pct),
+        "class_id": data.class_id, "batch_id": data.batch_id, "subject_id": None,
+        "active": True, "joined_at": joined, "connected_at": now,
+        "managed": True, "claim_code": code,
+    }
+    await db.connections.insert_one(conn)
+    try:
+        await ensure_fee_months(conn)
+    except Exception:
+        pass
+    return clean(conn)
+
+
+@api.post("/connections/{connection_id}/regenerate-code")
+async def regenerate_claim_code(connection_id: str, user: dict = Depends(require_role("teacher"))):
+    conn = await _load_conn_for_teacher(user["id"], connection_id)
+    if not conn.get("managed"):
+        raise HTTPException(400, "Ye student pehle se app se juda hua hai")
+    code = await _new_claim_code()
+    await db.connections.update_one({"id": connection_id}, {"$set": {"claim_code": code}})
+    return {"claim_code": code}
+
+
+async def _claim_student(real_uid: str, code: str) -> dict:
+    """Move a teacher-created (managed) student's whole record onto a real student account."""
+    code = _norm_code(code)
+    conn = await db.connections.find_one({"claim_code": code, "managed": True})
+    if not conn:
+        raise HTTPException(404, "Ye code galat hai ya pehle hi use ho chuka hai")
+    old_uid = conn["student_user_id"]
+    teacher_uid = conn["teacher_user_id"]
+    if await db.connections.find_one({"teacher_user_id": teacher_uid, "student_user_id": real_uid}):
+        raise HTTPException(409, "Aap is teacher se pehle se jude hue ho")
+    # atomic claim: only one person can win
+    won = await db.connections.find_one_and_update(
+        {"id": conn["id"], "managed": True, "claim_code": code},
+        {"$set": {"student_user_id": real_uid, "managed": False, "claimed_at": now_utc().isoformat()},
+         "$unset": {"claim_code": ""}},
+    )
+    if not won:
+        raise HTTPException(404, "Ye code galat hai ya pehle hi use ho chuka hai")
+    # move every record that points at the placeholder student
+    for col in ["fee_months", "installments", "marks", "attendance", "receipts", "join_requests"]:
+        try:
+            await db[col].update_many({"student_user_id": old_uid}, {"$set": {"student_user_id": real_uid}})
+        except Exception:
+            logger.exception("claim: could not move %s", col)
+    for col in ["homework", "announcements"]:
+        try:
+            await db[col].update_many(
+                {"student_ids": old_uid},
+                {"$set": {"student_ids.$[x]": real_uid}},
+                array_filters=[{"x": old_uid}],
+            )
+        except Exception:
+            logger.exception("claim: could not move %s targets", col)
+    try:
+        await db.notifications.update_many({"user_id": old_uid}, {"$set": {"user_id": real_uid}})
+    except Exception:
+        await db.notifications.delete_many({"user_id": old_uid})
+    # merge profile details (fill only blanks on the real profile)
+    old_p = await db.students.find_one({"user_id": old_uid}) or {}
+    real_p = await db.students.find_one({"user_id": real_uid}) or {}
+    fill = {f: old_p[f] for f in ["father_name", "phone", "class", "address", "photo_url"] if old_p.get(f) and not real_p.get(f)}
+    if fill and real_p:
+        await db.students.update_one({"user_id": real_uid}, {"$set": fill})
+    await db.students.delete_one({"user_id": old_uid})
+    await db.users.delete_one({"id": old_uid, "managed": True})
+    name = (real_p.get("name") or old_p.get("name") or "Student")
+    try:
+        await notify(real_uid, "Account jud gaya", f"Aapka record (Admission {conn['admission_number']}) aapke account se jud gaya hai.", "success")
+        await notify(teacher_uid, "Student app se jud gaya", f"{name} ({conn['admission_number']}) ne code se apna account jod liya.", "success")
+    except Exception:
+        pass
+    return clean(await db.connections.find_one({"id": conn["id"]}))
+
+
+@api.post("/student/claim")
+async def student_claim(data: ClaimIn, user: dict = Depends(require_role("student"))):
+    conn = await _claim_student(user["id"], data.code)
+    return {"ok": True, "connection": conn}
 
 
 @api.post("/requests/{request_id}/accept")
