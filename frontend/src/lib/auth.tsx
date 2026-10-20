@@ -7,7 +7,7 @@ type Ctx = {
   user: User | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<User>;
-  signUp: (email: string, password: string, name: string, role: "teacher" | "student") => Promise<User>;
+  signUp: (email: string, password: string, name: string, role: "teacher" | "student", claimCode?: string) => Promise<any>;
   signOut: () => Promise<void>;
   refresh: () => Promise<void>;
 };
@@ -52,15 +52,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const signUp = useCallback(
-    async (email: string, password: string, name: string, role: "teacher" | "student") => {
-      const res = await api<{ token: string; user: User }>("/auth/signup", {
+    async (email: string, password: string, name: string, role: "teacher" | "student", claimCode?: string) => {
+      const res = await api<{ token: string; user: User; claimed?: boolean; claim_error?: string }>("/auth/signup", {
         method: "POST",
-        body: { email, password, name, role },
+        body: { email, password, name, role, claim_code: claimCode || undefined },
         auth: false,
       });
       await saveToken(res.token);
       setUser(res.user);
-      return res.user;
+      return { ...res.user, claimed: res.claimed, claim_error: res.claim_error };
     },
     []
   );
