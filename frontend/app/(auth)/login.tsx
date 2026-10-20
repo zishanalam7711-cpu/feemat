@@ -27,10 +27,8 @@ export default function LoginScreen() {
     if (!email || !password) return setErr("Enter email and password");
     setLoading(true);
     try {
-      const u = await signIn(email.trim().toLowerCase(), password);
-      if (u.role !== role) {
-        setErr(`This account is a ${u.role} account.`);
-      }
+      // The server rejects the login if this account belongs to the other portal.
+      await signIn(email.trim().toLowerCase(), password, role);
       // Layout gate will route based on actual role
     } catch (e: any) {
       setErr(e?.message || "Login failed");

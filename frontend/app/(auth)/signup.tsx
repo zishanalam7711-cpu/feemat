@@ -28,7 +28,8 @@ export default function SignupScreen() {
     setErr(null);
     if (!name.trim()) return setErr("Please enter your name");
     if (!email.trim()) return setErr("Please enter email");
-    if (password.length < 6) return setErr("Password must be at least 6 characters");
+    if (password.length < 8 || !/[A-Za-z]/.test(password) || !/\d/.test(password))
+      return setErr("Password kam se kam 8 akshar ka ho, usme letter aur number dono hon");
     setLoading(true);
     try {
       const u: any = await signUp(email.trim().toLowerCase(), password, name.trim(), role, role === "student" ? code.trim() : undefined);
@@ -63,7 +64,7 @@ export default function SignupScreen() {
               placeholder={role === "teacher" ? "Ms. Priya Sharma" : "Rahul Kumar"} />
             <Input testID="signup-email-input" label="Email" value={email} onChangeText={setEmail}
               autoCapitalize="none" keyboardType="email-address" placeholder="you@school.com" />
-            <Input testID="signup-password-input" label="Password (min 6)" value={password} onChangeText={setPassword}
+            <Input testID="signup-password-input" label="Password (8+ akshar, letter + number)" value={password} onChangeText={setPassword}
               secureTextEntry placeholder="•••••••" />
             {role === "student" && (
               <View>
