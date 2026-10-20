@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import {
-  View, Text, StyleSheet, ScrollView, Pressable, KeyboardAvoidingView, Platform,
+  View, Text, StyleSheet, ScrollView, Pressable, KeyboardAvoidingView, Platform, Alert,
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -20,6 +20,7 @@ export default function SignupScreen() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [code, setCode] = useState("");
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -30,7 +31,11 @@ export default function SignupScreen() {
     if (password.length < 6) return setErr("Password must be at least 6 characters");
     setLoading(true);
     try {
-      await signUp(email.trim().toLowerCase(), password, name.trim(), role);
+      const u: any = await signUp(email.trim().toLowerCase(), password, name.trim(), role, role === "student" ? code.trim() : undefined);
+      if (role === "student" && code.trim()) {
+        if (u?.claimed) Alert.alert("Record jud gaya 🎉", "Teacher ne jo fees, attendance aur marks daale the, wo ab aapke account mein hain.");
+        else Alert.alert("Code use nahi hua", (u?.claim_error || "Code galat tha") + "\n\nAccount ban gaya hai. Home screen par \"Teacher ka code\" se baad mein dobara try kar sakte ho.");
+      }
       // routed by gate
     } catch (e: any) {
       setErr(e?.message || "Sign up failed");
@@ -60,6 +65,13 @@ export default function SignupScreen() {
               autoCapitalize="none" keyboardType="email-address" placeholder="you@school.com" />
             <Input testID="signup-password-input" label="Password (min 6)" value={password} onChangeText={setPassword}
               secureTextEntry placeholder="•••••••" />
+            {role === "student" && (
+              <View>
+                <Input testID="signup-code-input" label="Teacher ka code (agar mila ho)" value={code} onChangeText={setCode}
+                  autoCapitalize="characters" placeholder="Jaise: K7M2P9QX" />
+                <Text style={{ color: COLORS.muted, fontSize: 12, marginTop: 6 }}>Teacher ne pehle se aapka record banaya ho to ye code daalo. Nahi mila to khali chhod do.</Text>
+              </View>
+            )}
             {err ? <Text style={styles.err} testID="signup-error">{err}</Text> : null}
             <Button testID="signup-submit-button" title="Create Account" loading={loading} onPress={submit} />
           </View>
