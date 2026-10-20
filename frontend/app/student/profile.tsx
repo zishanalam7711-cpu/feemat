@@ -6,6 +6,7 @@ import { COLORS, SPACING, RADIUS } from "@/src/lib/theme";
 import { api } from "@/src/lib/api";
 import { Avatar } from "@/src/components/Avatar";
 import { PhotoPicker } from "@/src/components/PhotoPicker";
+import { ChangePasswordCard } from "@/src/components/ChangePasswordCard";
 import { Input } from "@/src/components/Input";
 import { Button } from "@/src/components/Button";
 import { useAuth } from "@/src/lib/auth";
@@ -54,6 +55,7 @@ export default function StudentProfile() {
         </View>
         <View style={{ padding: SPACING.lg, gap: SPACING.md }}>
           <Button testID="save-student-profile" title="Save Profile" loading={saving} onPress={save} />
+          <ChangePasswordCard />
           <Button testID="student-logout" title="Log Out" variant="secondary" onPress={async () => { await signOut(); router.replace("/"); }} />
         </View>
       </ScrollView>
