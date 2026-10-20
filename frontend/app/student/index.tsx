@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from "react";
-import { View, Text, StyleSheet, ScrollView, ActivityIndicator, Pressable, RefreshControl } from "react-native";
+import { View, Text, StyleSheet, ScrollView, ActivityIndicator, Pressable, RefreshControl, Modal, TextInput, Alert } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useFocusEffect, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -14,9 +14,25 @@ export default function StudentHome() {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [showCode, setShowCode] = useState(false);
+  const [code, setCode] = useState("");
+  const [claiming, setClaiming] = useState(false);
 
   const load = useCallback(async () => { try { setData(await api("/student/home")); } catch {} }, []);
   useFocusEffect(useCallback(() => { load().finally(() => setLoading(false)); }, [load]));
+
+  const claim = async () => {
+    if (!code.trim()) { Alert.alert("Code daalo", "Teacher ka diya hua code likho."); return; }
+    setClaiming(true);
+    try {
+      await api("/student/claim", { method: "POST", body: { code: code.trim() } });
+      setShowCode(false); setCode("");
+      await load();
+      Alert.alert("Record jud gaya 🎉", "Teacher ne jo fees, attendance aur marks daale the, wo ab aapke account mein hain.");
+    } catch (e: any) {
+      Alert.alert("Code nahi chala", e?.message || "Code galat hai.");
+    } finally { setClaiming(false); }
+  };
 
   if (loading) return <View style={styles.center}><ActivityIndicator color={COLORS.brand} /></View>;
   const s = data?.student || {};
@@ -51,6 +67,9 @@ export default function StudentHome() {
           <Pressable testID="cta-search-teacher" style={styles.cta} onPress={() => router.push("/student/search")}>
             <Ionicons name="search" size={18} color="#fff" />
             <Text style={{ color: "#fff", fontWeight: "700" }}>Search Teacher</Text>
+          </Pressable>
+          <Pressable testID="cta-enter-code" onPress={() => setShowCode(true)} style={{ paddingVertical: 8 }}>
+            <Text style={{ color: COLORS.brand, fontWeight: "700" }}>Teacher ne code diya hai? Yahan daalo</Text>
           </Pressable>
         </View>
       ) : (
@@ -93,6 +112,32 @@ export default function StudentHome() {
           </View>
         </>
       )}
+      {t ? (
+        <Pressable onPress={() => setShowCode(true)} style={{ alignItems: "center", paddingBottom: SPACING.xxl }}>
+          <Text style={{ color: COLORS.brand, fontWeight: "700", fontSize: 13 }}>Kisi aur teacher ka code hai? Yahan daalo</Text>
+        </Pressable>
+      ) : null}
+      <Modal transparent visible={showCode} animationType="fade" onRequestClose={() => setShowCode(false)}>
+        <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center", padding: SPACING.xl }}>
+          <View style={{ backgroundColor: COLORS.surface, borderRadius: RADIUS.md, padding: SPACING.xl, gap: SPACING.md }}>
+            <Text style={{ fontSize: 18, fontWeight: "800", color: COLORS.onSurface }}>Teacher ka code</Text>
+            <Text style={{ color: COLORS.muted, lineHeight: 19 }}>Teacher ne aapka record pehle se banaya hai to uska diya code yahan daalo. Fees, attendance aur marks sab aapke account mein aa jayenge.</Text>
+            <TextInput
+              testID="claim-code-input" value={code} onChangeText={setCode} autoCapitalize="characters" autoCorrect={false}
+              placeholder="K7M2P9QX" placeholderTextColor={COLORS.muted}
+              style={{ height: 48, borderRadius: RADIUS.md, borderWidth: 1, borderColor: COLORS.border, paddingHorizontal: 14, fontSize: 18, letterSpacing: 3, color: COLORS.onSurface }}
+            />
+            <View style={{ flexDirection: "row", gap: SPACING.sm }}>
+              <Pressable onPress={() => setShowCode(false)} style={{ flex: 1, height: 46, borderRadius: RADIUS.md, backgroundColor: COLORS.surfaceSecondary, alignItems: "center", justifyContent: "center" }}>
+                <Text style={{ fontWeight: "700", color: COLORS.onSurfaceSecondary }}>Cancel</Text>
+              </Pressable>
+              <Pressable testID="claim-submit" onPress={claim} disabled={claiming} style={{ flex: 1, height: 46, borderRadius: RADIUS.md, backgroundColor: COLORS.brand, alignItems: "center", justifyContent: "center", opacity: claiming ? 0.6 : 1 }}>
+                {claiming ? <ActivityIndicator color="#fff" /> : <Text style={{ color: "#fff", fontWeight: "700" }}>Jodo</Text>}
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 }
