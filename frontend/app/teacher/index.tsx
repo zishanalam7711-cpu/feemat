@@ -30,7 +30,7 @@ type Opt = {
 const OPTIONS: Opt[] = [
   { label: "Students", icon: "people", color: "#A855F7", route: "/teacher/students" },
   { label: "Classes", icon: "school", color: "#F59E0B", route: "/teacher/classes" },
-  { label: "Fees", icon: "wallet", color: "#3B82F6", route: "/teacher/students" },
+  { label: "Add Student", icon: "person-add", color: "#3B82F6", route: "/teacher/add-student" },
   { label: "Collect", icon: "cash", color: "#22C55E", route: "/teacher/collect" },
   { label: "Attendance", icon: "checkmark-done-circle", color: "#14B8A6", route: "/teacher/attendance" },
   { label: "Homework", icon: "clipboard", color: "#60A5FA", route: "/teacher/homework" },

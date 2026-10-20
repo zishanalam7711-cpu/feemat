@@ -15,6 +15,7 @@ type Item = {
   due: number;
   advance: number;
   active: boolean;
+  managed?: boolean;
   student: { name?: string; class?: string; phone?: string; photo_url?: string };
 };
 
@@ -44,7 +45,13 @@ export default function StudentsScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: COLORS.surfaceSecondary }}>
       <View style={[styles.header, { paddingTop: insets.top + SPACING.md }]}>
-        <Text style={styles.title}>My Students</Text>
+        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+          <Text style={styles.title}>My Students</Text>
+          <Pressable testID="add-student-btn" onPress={() => router.push("/teacher/add-student" as any)} style={styles.addBtn}>
+            <Ionicons name="person-add" size={16} color="#fff" />
+            <Text style={styles.addTxt}>Add</Text>
+          </Pressable>
+        </View>
         <View style={styles.searchWrap}>
           <Ionicons name="search" size={18} color={COLORS.muted} />
           <TextInput
@@ -78,7 +85,7 @@ export default function StudentsScreen() {
         <View style={styles.center}>
           <Ionicons name="people-outline" size={56} color={COLORS.borderStrong} />
           <Text style={styles.empty}>No students yet</Text>
-          <Text style={styles.emptySub}>Accept student requests to build your directory.</Text>
+          <Text style={styles.emptySub}>Student requests accept karo, ya upar "Add" se bina app wala student jodo.</Text>
         </View>
       ) : (
         <FlatList
@@ -93,7 +100,10 @@ export default function StudentsScreen() {
             >
               <Avatar name={item.student?.name} uri={item.student?.photo_url} />
               <View style={{ flex: 1 }}>
-                <Text style={styles.rowName}>{item.student?.name || "Student"}</Text>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                  <Text style={styles.rowName}>{item.student?.name || "Student"}</Text>
+                  {item.managed ? <Text style={styles.noApp}>App nahi</Text> : null}
+                </View>
                 <Text style={styles.rowMeta}>{item.admission_number} • {item.student?.class || "—"}</Text>
                 <Text style={styles.rowMeta}>Monthly {inr(item.monthly_fee)} • Billed {inr(item.total_billed)}</Text>
               </View>
@@ -126,6 +136,9 @@ const styles = StyleSheet.create({
   rowMeta: { color: COLORS.muted, fontSize: 12, marginTop: 2 },
   due: { color: COLORS.error, fontWeight: "800" },
   paid: { color: COLORS.success, fontWeight: "800" },
+  addBtn: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 14, height: 36, borderRadius: RADIUS.pill, backgroundColor: COLORS.brand },
+  addTxt: { color: "#fff", fontWeight: "700", fontSize: 13 },
+  noApp: { fontSize: 10, fontWeight: "800", color: "#B45309", backgroundColor: "#FEF3C7", paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, overflow: "hidden" },
   banner: { flexDirection: "row", alignItems: "center", gap: SPACING.sm, margin: SPACING.md, padding: SPACING.md, backgroundColor: COLORS.brandSoft, borderRadius: RADIUS.md, borderWidth: 1, borderColor: "#DDD6FE" },
   bannerTxt: { flex: 1, color: COLORS.brand, fontSize: 12, fontWeight: "700" },
 });
