@@ -1,7 +1,7 @@
 import { Stack, useRouter, useSegments } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { useEffect } from "react";
-import { LogBox } from "react-native";
+import { KeyboardAvoidingView, LogBox, Platform } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
@@ -52,7 +52,10 @@ export default function RootLayout() {
       <SafeAreaProvider>
         <AuthProvider>
           <StatusBar style="dark" />
-          <AuthGate />
+          {/* Android draws edge-to-edge, so the window no longer resizes for the keyboard: pad it ourselves. */}
+          <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "android" ? "padding" : undefined}>
+            <AuthGate />
+          </KeyboardAvoidingView>
         </AuthProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
