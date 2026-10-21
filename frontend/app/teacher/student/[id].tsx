@@ -1,4 +1,5 @@
 import React, { useCallback, useState } from "react";
+import { InlineOverlay } from "@/src/components/InlineOverlay";
 import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, Modal, KeyboardAvoidingView, Platform, Linking, Share } from "react-native";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -136,21 +137,21 @@ export default function StudentDetail() {
 
         {c.managed && c.claim_code ? (
           <View style={[styles.card, { borderWidth: 1, borderColor: "#FCD34D", backgroundColor: "#FFFBEB" }]}>
-            <Text style={styles.sect}>App ke bina student</Text>
-            <Text style={styles.meta}>Student ko ye code do. Wo app mein Student Sign Up ke time daalega to ye saara record uske account mein aa jayega.</Text>
+            <Text style={styles.sect}>Student without the app</Text>
+            <Text style={styles.meta}>Give this code to the student. When they enter it during Student Sign Up in the app, this whole record moves to their account.</Text>
             <Text selectable style={{ fontSize: 28, fontWeight: "800", letterSpacing: 4, color: "#B45309", marginVertical: SPACING.sm }}>{c.claim_code}</Text>
             <View style={{ flexDirection: "row", gap: SPACING.sm }}>
               <Pressable
-                onPress={() => Share.share({ message: `Namaste ${s.name}, FeeMat app mein Student Sign Up karte waqt ye code daalo: ${c.claim_code}\nIsse aapki fees, attendance aur marks aapke account mein aa jayenge.` })}
+                onPress={() => Share.share({ message: `Hello ${s.name}, enter this code when you choose Student Sign Up in the FeeMat app: ${c.claim_code}\nYour fees, attendance and marks will then appear in your account.` })}
                 style={{ flex: 1, height: 40, borderRadius: RADIUS.md, backgroundColor: COLORS.brand, alignItems: "center", justifyContent: "center" }}
               >
-                <Text style={{ color: "#fff", fontWeight: "700" }}>Code share karo</Text>
+                <Text style={{ color: "#fff", fontWeight: "700" }}>Share code</Text>
               </Pressable>
               <Pressable
                 onPress={async () => { try { await api(`/connections/${id}/regenerate-code`, { method: "POST" }); await load(); } catch {} }}
                 style={{ paddingHorizontal: 14, height: 40, borderRadius: RADIUS.md, backgroundColor: COLORS.surfaceSecondary, alignItems: "center", justifyContent: "center" }}
               >
-                <Text style={{ color: COLORS.onSurfaceSecondary, fontWeight: "700" }}>Naya code</Text>
+                <Text style={{ color: COLORS.onSurfaceSecondary, fontWeight: "700" }}>New code</Text>
               </Pressable>
             </View>
           </View>
@@ -242,8 +243,8 @@ export default function StudentDetail() {
       </ScrollView>
 
       {/* Setup Modal */}
-      <Modal transparent visible={showSetup} animationType="slide" onRequestClose={() => setShowSetup(false)}>
-        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={styles.modalWrap}>
+      <InlineOverlay visible={showSetup} onClose={() => setShowSetup(false)}>
+        <View style={styles.modalWrap}>
           <View style={styles.modalCard}>
             <Text style={styles.modalTitle}>Fee Setup</Text>
             <Input testID="setup-fee" label="Monthly Fee (₹)" value={feeInput} onChangeText={setFeeInput} keyboardType="decimal-pad" />
@@ -275,12 +276,12 @@ export default function StudentDetail() {
               <Button testID="setup-save" title="Save" onPress={saveSetup} loading={saving} style={{ flex: 1 }} />
             </View>
           </View>
-        </KeyboardAvoidingView>
-      </Modal>
+        </View>
+      </InlineOverlay>
 
       {/* Installment Modal */}
-      <Modal transparent visible={!!showInst} animationType="slide" onRequestClose={() => setShowInst(null)}>
-        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={styles.modalWrap}>
+      <InlineOverlay visible={!!showInst} onClose={() => setShowInst(null)}>
+        <View style={styles.modalWrap}>
           <View style={styles.modalCard}>
             <Text style={styles.modalTitle}>Add Installment{showInst?.month ? ` — ${showInst.month}` : ""}</Text>
             <Input testID="inst-amount" label="Amount (₹)" value={instAmt} onChangeText={setInstAmt} keyboardType="decimal-pad" />
@@ -291,11 +292,11 @@ export default function StudentDetail() {
               <Button testID="inst-submit" title="Save & Receipt" onPress={submitInst} loading={saving} style={{ flex: 1 }} />
             </View>
           </View>
-        </KeyboardAvoidingView>
-      </Modal>
+        </View>
+      </InlineOverlay>
 
       {/* Adjust Modal */}
-      <Modal transparent visible={!!showAdj} animationType="fade" onRequestClose={() => setShowAdj(null)}>
+      <InlineOverlay visible={!!showAdj} onClose={() => setShowAdj(null)}>
         <View style={styles.modalWrap}>
           <View style={styles.modalCard}>
             <Text style={styles.modalTitle}>Adjust {showAdj?.month}</Text>
@@ -311,7 +312,7 @@ export default function StudentDetail() {
             </View>
           </View>
         </View>
-      </Modal>
+      </InlineOverlay>
     </View>
   );
 }
