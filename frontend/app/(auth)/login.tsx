@@ -21,11 +21,13 @@ export default function LoginScreen() {
   const [password, setPassword] = useState("");
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [slow, setSlow] = useState(false);
 
   const onSubmit = async () => {
     setErr(null);
     if (!email || !password) return setErr("Enter email and password");
     setLoading(true);
+    const slowTimer = setTimeout(() => setSlow(true), 5000);
     try {
       // The server rejects the login if this account belongs to the other portal.
       await signIn(email.trim().toLowerCase(), password, role);
@@ -33,6 +35,8 @@ export default function LoginScreen() {
     } catch (e: any) {
       setErr(e?.message || "Login failed");
     } finally {
+      clearTimeout(slowTimer);
+      setSlow(false);
       setLoading(false);
     }
   };
@@ -57,6 +61,7 @@ export default function LoginScreen() {
             <Input testID="password-input" label="Password" value={password} onChangeText={setPassword}
               secureTextEntry placeholder="•••••••" />
             {err ? <Text style={styles.err} testID="login-error">{err}</Text> : null}
+            {loading && slow ? <Text style={styles.hint}>Connecting to the server... the first request can take up to a minute.</Text> : null}
             <Button testID="login-submit-button" title="Log In" loading={loading} onPress={onSubmit} />
           </View>
 
@@ -93,6 +98,7 @@ const styles = StyleSheet.create({
   title: { fontSize: 28, fontWeight: "800", color: COLORS.onSurface },
   sub: { color: COLORS.onSurfaceSecondary, marginTop: 6 },
   err: { color: COLORS.error, fontSize: 13 },
+  hint: { color: COLORS.muted, fontSize: 13 },
   link: { color: COLORS.brand, textAlign: "center", fontSize: 15 },
   linkMuted: { color: COLORS.muted, textAlign: "center", fontSize: 13 },
 });

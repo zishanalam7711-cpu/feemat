@@ -29,13 +29,13 @@ export default function SignupScreen() {
     if (!name.trim()) return setErr("Please enter your name");
     if (!email.trim()) return setErr("Please enter email");
     if (password.length < 8 || !/[A-Za-z]/.test(password) || !/\d/.test(password))
-      return setErr("Password kam se kam 8 akshar ka ho, usme letter aur number dono hon");
+      return setErr("Password must be at least 8 characters and include a letter and a number");
     setLoading(true);
     try {
       const u: any = await signUp(email.trim().toLowerCase(), password, name.trim(), role, role === "student" ? code.trim() : undefined);
       if (role === "student" && code.trim()) {
-        if (u?.claimed) Alert.alert("Record jud gaya 🎉", "Teacher ne jo fees, attendance aur marks daale the, wo ab aapke account mein hain.");
-        else Alert.alert("Code use nahi hua", (u?.claim_error || "Code galat tha") + "\n\nAccount ban gaya hai. Home screen par \"Teacher ka code\" se baad mein dobara try kar sakte ho.");
+        if (u?.claimed) Alert.alert("Record linked 🎉", "The fees, attendance and marks your teacher entered are now in your account.");
+        else Alert.alert("Code not used", (u?.claim_error || "The code was incorrect") + "\n\nYour account was created. You can try the code again later from the Home screen (\"Teacher code\").");
       }
       // routed by gate
     } catch (e: any) {
@@ -68,9 +68,9 @@ export default function SignupScreen() {
               secureTextEntry placeholder="•••••••" />
             {role === "student" && (
               <View>
-                <Input testID="signup-code-input" label="Teacher ka code (agar mila ho)" value={code} onChangeText={setCode}
-                  autoCapitalize="characters" placeholder="Jaise: K7M2P9QX" />
-                <Text style={{ color: COLORS.muted, fontSize: 12, marginTop: 6 }}>Teacher ne pehle se aapka record banaya ho to ye code daalo. Nahi mila to khali chhod do.</Text>
+                <Input testID="signup-code-input" label="Teacher code (if you have one)" value={code} onChangeText={setCode}
+                  autoCapitalize="characters" placeholder="e.g. K7M2P9QX" />
+                <Text style={{ color: COLORS.muted, fontSize: 12, marginTop: 6 }}>If your teacher already created your record, enter the code here. Otherwise leave it empty.</Text>
               </View>
             )}
             {err ? <Text style={styles.err} testID="signup-error">{err}</Text> : null}

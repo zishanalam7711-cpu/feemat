@@ -32,15 +32,15 @@ export default function ForgotScreen() {
   const sendOtp = async () => {
     setErr(null);
     const e = email.trim().toLowerCase();
-    if (!/^\S+@\S+\.\S+$/.test(e)) return setErr("Sahi email likho");
+    if (!/^\S+@\S+\.\S+$/.test(e)) return setErr("Enter a valid email");
     setLoading(true);
     try {
       const res: any = await api("/auth/forgot-password", { method: "POST", auth: false, body: { email: e } });
-      setInfo(res?.message || "OTP bhej diya gaya hai.");
+      setInfo(res?.message || "OTP sent.");
       setStep("reset");
       setCooldown(60);
     } catch (ex: any) {
-      setErr(ex?.message ?? "OTP nahi bheja ja saka");
+      setErr(ex?.message ?? "Could not send the OTP");
     } finally {
       setLoading(false);
     }
@@ -52,10 +52,10 @@ export default function ForgotScreen() {
     setLoading(true);
     try {
       await api("/auth/forgot-password", { method: "POST", auth: false, body: { email: email.trim().toLowerCase() } });
-      setInfo("Naya OTP bhej diya gaya hai (agar email registered hai).");
+      setInfo("A new OTP has been sent (if the email is registered).");
       setCooldown(60);
     } catch (ex: any) {
-      setErr(ex?.message ?? "OTP nahi bheja ja saka");
+      setErr(ex?.message ?? "Could not send the OTP");
     } finally {
       setLoading(false);
     }
@@ -63,9 +63,9 @@ export default function ForgotScreen() {
 
   const reset = async () => {
     setErr(null);
-    if (!/^\d{6}$/.test(otp.trim())) return setErr("6 digit ka OTP likho");
-    if (!strongEnough(pw)) return setErr("Naya password kam se kam 8 akshar ka ho, usme letter aur number dono hon");
-    if (pw !== pw2) return setErr("Dono password same nahi hain");
+    if (!/^\d{6}$/.test(otp.trim())) return setErr("Enter the 6-digit OTP");
+    if (!strongEnough(pw)) return setErr("The new password must be at least 8 characters and include a letter and a number");
+    if (pw !== pw2) return setErr("The two passwords do not match");
     setLoading(true);
     try {
       await api("/auth/reset-password", {
@@ -74,7 +74,7 @@ export default function ForgotScreen() {
       });
       setStep("done");
     } catch (ex: any) {
-      setErr(ex?.message ?? "Password nahi badla");
+      setErr(ex?.message ?? "Could not change the password");
     } finally {
       setLoading(false);
     }
@@ -93,40 +93,40 @@ export default function ForgotScreen() {
         <ScrollView contentContainerStyle={{ padding: SPACING.xl }} keyboardShouldPersistTaps="handled">
           {step === "done" ? (
             <>
-              <Text style={styles.title}>Password badal gaya ✅</Text>
-              <Text style={styles.sub}>Ab naye password se login karo. Purane sab login apne aap band ho gaye hain.</Text>
-              <Button testID="back-to-login" title="Login par jao" onPress={() => router.replace("/")} style={{ marginTop: SPACING.xl }} />
+              <Text style={styles.title}>Password changed ✅</Text>
+              <Text style={styles.sub}>You can now log in with your new password. All older sessions have been signed out.</Text>
+              <Button testID="back-to-login" title="Go to Login" onPress={() => router.replace("/")} style={{ marginTop: SPACING.xl }} />
             </>
           ) : step === "email" ? (
             <>
-              <Text style={styles.title}>Password bhool gaye?</Text>
-              <Text style={styles.sub}>Apna email likho. Hum 6 digit ka OTP bhejenge.</Text>
+              <Text style={styles.title}>Forgot your password?</Text>
+              <Text style={styles.sub}>Enter your email. We will send you a 6-digit OTP.</Text>
               <View style={{ gap: SPACING.lg, marginTop: SPACING.xl }}>
                 <Input testID="forgot-email" label="Email" value={email} onChangeText={setEmail}
                   autoCapitalize="none" keyboardType="email-address" placeholder="you@school.com" />
                 {err ? <Text style={styles.err}>{err}</Text> : null}
-                <Button testID="forgot-send" title="OTP bhejo" onPress={sendOtp} loading={loading} />
+                <Button testID="forgot-send" title="Send OTP" onPress={sendOtp} loading={loading} />
               </View>
             </>
           ) : (
             <>
-              <Text style={styles.title}>OTP daalo</Text>
+              <Text style={styles.title}>Enter OTP</Text>
               <Text style={styles.sub}>{info}</Text>
               <View style={{ gap: SPACING.lg, marginTop: SPACING.xl }}>
                 <Input testID="forgot-otp" label="6 digit OTP" value={otp} onChangeText={setOtp}
                   keyboardType="number-pad" maxLength={6} placeholder="••••••" />
-                <Input testID="forgot-pw" label="Naya password" value={pw} onChangeText={setPw} secureTextEntry
-                  placeholder="Kam se kam 8 akshar, letter + number" />
-                <Input testID="forgot-pw2" label="Naya password dobara" value={pw2} onChangeText={setPw2} secureTextEntry />
+                <Input testID="forgot-pw" label="New password" value={pw} onChangeText={setPw} secureTextEntry
+                  placeholder="At least 8 characters, letter + number" />
+                <Input testID="forgot-pw2" label="Confirm new password" value={pw2} onChangeText={setPw2} secureTextEntry />
                 {err ? <Text style={styles.err}>{err}</Text> : null}
-                <Button testID="forgot-submit" title="Password badlo" onPress={reset} loading={loading} />
+                <Button testID="forgot-submit" title="Change Password" onPress={reset} loading={loading} />
                 <Pressable onPress={resend} disabled={cooldown > 0 || loading}>
                   <Text style={[styles.resend, (cooldown > 0 || loading) && { opacity: 0.5 }]}>
-                    {cooldown > 0 ? `Naya OTP ${cooldown} second baad maang sakte ho` : "OTP nahi mila? Dobara bhejo"}
+                    {cooldown > 0 ? `You can request a new OTP in ${cooldown}s` : "Didn't get it? Resend OTP"}
                   </Text>
                 </Pressable>
                 <Pressable onPress={() => { setStep("email"); setErr(null); setOtp(""); }}>
-                  <Text style={[styles.resend, { color: COLORS.muted }]}>Email badlo</Text>
+                  <Text style={[styles.resend, { color: COLORS.muted }]}>Change email</Text>
                 </Pressable>
               </View>
             </>
