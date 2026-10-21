@@ -1,4 +1,5 @@
 import React, { useCallback, useMemo, useState } from "react";
+import { InlineOverlay } from "@/src/components/InlineOverlay";
 import {
   View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, Modal, KeyboardAvoidingView, Platform,
   TextInput, Alert, Share,
@@ -121,9 +122,9 @@ export default function Exams() {
 
   // ---------- create exam
   const create = async () => {
-    if (!title.trim()) { Alert.alert("Title likho", "Exam ka naam daalo."); return; }
+    if (!title.trim()) { Alert.alert("Enter a title", "Enter the exam name."); return; }
     const t = parseFloat(total), p = parseFloat(pass);
-    if (!(t > 0) || isNaN(p) || p > t) { Alert.alert("Marks check karo", "Total marks 0 se zyada aur passing marks total se kam hone chahiye."); return; }
+    if (!(t > 0) || isNaN(p) || p > t) { Alert.alert("Check the marks", "Total marks must be above 0 and passing marks must not exceed total marks."); return; }
     setBusy(true);
     try {
       await api("/teacher/exams", { method: "POST", body: { title: title.trim(), subject, total_marks: t, passing_marks: p, exam_date: date } });
@@ -131,7 +132,7 @@ export default function Exams() {
       await load();
     } catch (e: any) {
       if (String(e?.message || "").includes("Upgrade to Pro")) { setShowNew(false); setPro(true); }
-      else Alert.alert("Error", e?.message || "Exam nahi bana.");
+      else Alert.alert("Error", e?.message || "Could not create the exam.");
     } finally { setBusy(false); }
   };
 
@@ -149,26 +150,26 @@ export default function Exams() {
       if (v === "" || isNaN(parseFloat(v))) continue;
       const num = parseFloat(v);
       if (num < 0 || num > totalM) {
-        Alert.alert("Marks galat hain", `${nameOf[uid]?.student?.name || "Student"} ke marks 0 se ${totalM} ke beech hone chahiye.`);
+        Alert.alert("Invalid marks", `Marks for ${nameOf[uid]?.student?.name || "Student"} must be between 0 and ${totalM}.`);
         return;
       }
       list.push({ student_user_id: uid, marks: num });
     }
-    if (!list.length) { Alert.alert("Kuch daala nahi", "Kam se kam ek student ke marks likho."); return; }
+    if (!list.length) { Alert.alert("Nothing entered", "Enter marks for at least one student."); return; }
     setBusy(true);
     try {
       await api(`/teacher/exams/${entry.id}/marks`, { method: "POST", body: { entries: list } });
       setEntry(null);
       await load();
     } catch (e: any) {
-      Alert.alert("Error", e?.message || "Marks save nahi hue.");
+      Alert.alert("Error", e?.message || "Could not save the marks.");
     } finally { setBusy(false); }
   };
 
   // ---------- share
   const shareResults = async (ex: any) => {
     const rows = ranked(ex);
-    if (!rows.length) { Alert.alert("Result nahi hai", "Pehle marks daalo."); return; }
+    if (!rows.length) { Alert.alert("No results", "Enter marks first."); return; }
     const medal = (r: number) => (r === 1 ? "🥇" : r === 2 ? "🥈" : r === 3 ? "🥉" : `${r}.`);
     const lines = rows.map((m) => `${medal(m.rank)} ${nameOf[m.student_user_id]?.student?.name || "Student"} — ${m.marks}/${ex.total_marks} (${m.grade})`);
     await Share.share({ message: `📝 ${ex.title}${ex.subject ? " — " + ex.subject : ""}\n${ex.exam_date}\n\n${lines.join("\n")}` });
@@ -183,7 +184,7 @@ export default function Exams() {
         return m ? { ex, m } : null;
       })
       .filter(Boolean) as { ex: any; m: any }[];
-    if (!rows.length) { Alert.alert("Marks nahi hain", "Is student ke koi marks abhi nahi daale gaye."); return; }
+    if (!rows.length) { Alert.alert("No marks", "No marks have been entered for this student yet."); return; }
     const sumMarks = rows.reduce((a, r) => a + r.m.marks, 0);
     const sumTotal = rows.reduce((a, r) => a + Number(r.ex.total_marks), 0);
     const pct = sumTotal ? (sumMarks / sumTotal) * 100 : 0;
@@ -207,9 +208,9 @@ export default function Exams() {
     try {
       const { uri } = await Print.printToFileAsync({ html });
       if (await Sharing.isAvailableAsync()) await Sharing.shareAsync(uri, { mimeType: "application/pdf", dialogTitle: "Report Card" });
-      else Alert.alert("PDF ban gayi", uri);
+      else Alert.alert("PDF created", uri);
     } catch {
-      Alert.alert("Error", "PDF nahi ban paayi.");
+      Alert.alert("Error", "Could not create the PDF.");
     }
   };
 
@@ -232,8 +233,8 @@ export default function Exams() {
       ) : exams.length === 0 ? (
         <View style={styles.center}>
           <Ionicons name="document-text-outline" size={56} color="rgba(255,255,255,0.25)" />
-          <Text style={styles.emptyTxt}>Abhi koi exam nahi hai</Text>
-          <Text style={{ color: DARK.sub }}>Upar "New" dabake pehla test banao.</Text>
+          <Text style={styles.emptyTxt}>No exams yet</Text>
+          <Text style={{ color: DARK.sub }}>Tap "New" above to create your first test.</Text>
         </View>
       ) : (
         <ScrollView contentContainerStyle={{ padding: SPACING.md, gap: SPACING.md, paddingBottom: SPACING.xxl }}>
@@ -259,7 +260,7 @@ export default function Exams() {
                     <Mini label="Marks" value={entered} color="#3B82F6" />
                   </View>
                 ) : (
-                  <Text style={[styles.meta, { marginTop: 8 }]}>Marks abhi nahi daale gaye.</Text>
+                  <Text style={[styles.meta, { marginTop: 8 }]}>Marks have not been entered yet.</Text>
                 )}
                 {topName ? <Text style={styles.topper}>🏆 Topper: {topName} ({st.top.percentage}%)</Text> : null}
               </Pressable>
@@ -269,7 +270,7 @@ export default function Exams() {
       )}
 
       {/* ---------- exam detail ---------- */}
-      <Modal visible={!!selected} animationType="slide" onRequestClose={() => setSelected(null)}>
+      <InlineOverlay visible={!!selected} onClose={() => setSelected(null)}>
         <View style={{ flex: 1, backgroundColor: DARK.bg }}>
           <View style={[styles.header, { paddingTop: insets.top + SPACING.md }]}>
             <Pressable onPress={() => setSelected(null)} hitSlop={12}><Ionicons name="arrow-back" size={22} color="#fff" /></Pressable>
@@ -292,7 +293,7 @@ export default function Exams() {
             <View style={{ flexDirection: "row", gap: SPACING.sm }}>
               <Pressable onPress={() => selected && openEntry(selected)} style={[styles.action, { backgroundColor: "#7C3AED" }]}>
                 <Ionicons name="create" size={16} color="#fff" />
-                <Text style={styles.actionTxt}>Marks Daalo / Badlo</Text>
+                <Text style={styles.actionTxt}>Enter / Edit Marks</Text>
               </Pressable>
               <Pressable onPress={() => selected && shareResults(selected)} style={[styles.action, { backgroundColor: "rgba(168,85,247,0.18)" }]}>
                 <Ionicons name="share-social" size={16} color="#A855F7" />
@@ -303,7 +304,7 @@ export default function Exams() {
             {detRows.length === 0 ? (
               <View style={[styles.center, { paddingVertical: 40 }]}>
                 <Ionicons name="trophy-outline" size={48} color="rgba(255,255,255,0.25)" />
-                <Text style={{ color: DARK.sub, marginTop: 8 }}>Marks daalte hi ranking yahan dikhegi.</Text>
+                <Text style={{ color: DARK.sub, marginTop: 8 }}>Rankings will appear here once marks are entered.</Text>
               </View>
             ) : (
               detRows.map((m) => {
@@ -327,14 +328,14 @@ export default function Exams() {
                 );
               })
             )}
-            <Text style={[styles.meta, { textAlign: "center", marginTop: 8 }]}>PDF icon = us student ka poora Report Card (saare exams)</Text>
+            <Text style={[styles.meta, { textAlign: "center", marginTop: 8 }]}>PDF icon = that student's full report card (all exams)</Text>
           </ScrollView>
         </View>
-      </Modal>
+      </InlineOverlay>
 
       {/* ---------- new exam ---------- */}
-      <Modal transparent visible={showNew} animationType="slide" onRequestClose={() => setShowNew(false)}>
-        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={styles.overlay}>
+      <InlineOverlay visible={showNew} onClose={() => setShowNew(false)}>
+        <View style={styles.overlay}>
           <Pressable style={{ flex: 1 }} onPress={() => setShowNew(false)} />
           <View style={[styles.sheet, { paddingBottom: insets.bottom + SPACING.lg }]}>
             <ScrollView keyboardShouldPersistTaps="handled">
@@ -365,23 +366,23 @@ export default function Exams() {
               <Text style={styles.label}>Date (YYYY-MM-DD)</Text>
               <TextInput testID="e-date" value={date} onChangeText={setDate} style={styles.input} />
               <View style={styles.wrap}>
-                {[["Aaj", 0], ["Kal", 1], ["Agle hafte", 7]].map(([l, n]) => (
+                {[["Today", 0], ["Tomorrow", 1], ["Next week", 7]].map(([l, n]) => (
                   <Pressable key={String(l)} onPress={() => setDate(addDays(todayStr(), Number(n)))} style={styles.chip}>
                     <Text style={styles.chipTxt}>{l}</Text>
                   </Pressable>
                 ))}
               </View>
               <Pressable testID="e-save" onPress={create} disabled={busy} style={[styles.saveBtn, busy && { opacity: 0.6 }]}>
-                {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveTxt}>Exam Banao</Text>}
+                {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveTxt}>Create Exam</Text>}
               </Pressable>
             </ScrollView>
           </View>
-        </KeyboardAvoidingView>
-      </Modal>
+        </View>
+      </InlineOverlay>
 
       {/* ---------- marks entry ---------- */}
-      <Modal transparent visible={!!entry} animationType="slide" onRequestClose={() => setEntry(null)}>
-        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={styles.overlay}>
+      <InlineOverlay visible={!!entry} onClose={() => setEntry(null)}>
+        <View style={styles.overlay}>
           <Pressable style={{ flex: 1 }} onPress={() => setEntry(null)} />
           <View style={[styles.sheet, { maxHeight: "88%", paddingBottom: insets.bottom + SPACING.lg }]}>
             <Text style={styles.sheetTitle}>Marks — {entry?.title}</Text>
@@ -405,7 +406,7 @@ export default function Exams() {
                       <View style={[styles.gradePill, { backgroundColor: (failed ? "#EF4444" : gradeColor(g)) + "26" }]}>
                         <Text style={[styles.gradeTxt, { color: failed ? "#EF4444" : gradeColor(g) }]}>{failed ? "Fail" : g}</Text>
                       </View>
-                    ) : over ? <Text style={{ color: "#EF4444", fontSize: 11 }}>Zyada</Text> : null}
+                    ) : over ? <Text style={{ color: "#EF4444", fontSize: 11 }}>Too high</Text> : null}
                     <TextInput
                       testID={`marks-${c.student_user_id}`}
                       value={v}
@@ -423,8 +424,8 @@ export default function Exams() {
               {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveTxt}>Save & Notify Students</Text>}
             </Pressable>
           </View>
-        </KeyboardAvoidingView>
-      </Modal>
+        </View>
+      </InlineOverlay>
 
       <ProUpgradeModal visible={pro} onClose={() => setPro(false)} feature="Exams & Results" />
     </View>

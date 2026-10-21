@@ -1,4 +1,5 @@
 import React, { useCallback, useMemo, useState } from "react";
+import { InlineOverlay } from "@/src/components/InlineOverlay";
 import {
   View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, Modal, KeyboardAvoidingView, Platform, TextInput, Alert,
 } from "react-native";
@@ -35,11 +36,11 @@ function daysLeft(due: string) {
 function dueBadge(due: string) {
   const n = daysLeft(due);
   if (isNaN(n)) return { txt: due, color: "#9CA3AF" };
-  if (n < 0) return { txt: `${Math.abs(n)} din pehle khatam`, color: "#9CA3AF" };
-  if (n === 0) return { txt: "Aaj last date", color: "#EF4444" };
-  if (n === 1) return { txt: "Kal last date", color: "#F59E0B" };
-  if (n <= 3) return { txt: `${n} din baaki`, color: "#F59E0B" };
-  return { txt: `${n} din baaki`, color: "#10B981" };
+  if (n < 0) return { txt: `Ended ${Math.abs(n)} day(s) ago`, color: "#9CA3AF" };
+  if (n === 0) return { txt: "Due today", color: "#EF4444" };
+  if (n === 1) return { txt: "Due tomorrow", color: "#F59E0B" };
+  if (n <= 3) return { txt: `${n} days left`, color: "#F59E0B" };
+  return { txt: `${n} days left`, color: "#10B981" };
 }
 
 type Filter = "upcoming" | "past" | "all";
@@ -88,9 +89,9 @@ export default function Homework() {
   const reset = () => { setTitle(""); setDesc(""); setDue(addDays(todayStr(), 3)); setAud(EVERYONE); };
 
   const create = async () => {
-    if (!title.trim()) { Alert.alert("Title likho", "Homework ka title daalo."); return; }
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(due)) { Alert.alert("Date galat hai", "Date YYYY-MM-DD format mein likho."); return; }
-    if (!audienceValid(aud)) { Alert.alert("Kisko dena hai?", "Class, batch ya students chuno."); return; }
+    if (!title.trim()) { Alert.alert("Enter a title", "Enter the homework title."); return; }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(due)) { Alert.alert("Invalid date", "Enter the date as YYYY-MM-DD."); return; }
+    if (!audienceValid(aud)) { Alert.alert("Who is this for?", "Choose a class, batch or students."); return; }
     setBusy(true);
     try {
       await api("/teacher/homework", { method: "POST", body: { title: title.trim(), description: desc.trim(), due_date: due, ...audienceBody(aud) } });
@@ -98,7 +99,7 @@ export default function Homework() {
       await load();
     } catch (e: any) {
       if (String(e?.message || "").includes("Upgrade to Pro")) { setShow(false); setPro(true); }
-      else Alert.alert("Error", e?.message || "Homework nahi gaya.");
+      else Alert.alert("Error", e?.message || "Could not assign the homework.");
     } finally { setBusy(false); }
   };
 
@@ -108,7 +109,7 @@ export default function Homework() {
         <Pressable onPress={() => router.back()} hitSlop={12}><Ionicons name="arrow-back" size={22} color="#fff" /></Pressable>
         <View style={{ flex: 1 }}>
           <Text style={styles.title}>Homework</Text>
-          <Text style={styles.sub}>{upcomingCount} chal rahe hain</Text>
+          <Text style={styles.sub}>{upcomingCount} active</Text>
         </View>
         <Pressable testID="new-hw" onPress={() => setShow(true)} style={styles.addBtn}>
           <Ionicons name="add" size={18} color="#fff" />
@@ -117,7 +118,7 @@ export default function Homework() {
       </View>
 
       <View style={styles.filters}>
-        {([["upcoming", "Chal rahe"], ["past", "Purane"], ["all", "Sab"]] as [Filter, string][]).map(([k, l]) => (
+        {([["upcoming", "Active"], ["past", "Past"], ["all", "All"]] as [Filter, string][]).map(([k, l]) => (
           <Pressable key={k} onPress={() => setFilter(k)} style={[styles.fChip, filter === k && styles.fChipOn]}>
             <Text style={[styles.fTxt, filter === k && { color: "#fff" }]}>{l}</Text>
           </Pressable>
@@ -129,8 +130,8 @@ export default function Homework() {
       ) : list.length === 0 ? (
         <View style={styles.center}>
           <Ionicons name="clipboard-outline" size={56} color="rgba(255,255,255,0.25)" />
-          <Text style={styles.emptyTxt}>{filter === "past" ? "Koi purana homework nahi" : "Abhi koi homework nahi hai"}</Text>
-          <Text style={{ color: DARK.sub }}>Upar "New" dabake homework do.</Text>
+          <Text style={styles.emptyTxt}>{filter === "past" ? "No past homework" : "No homework yet"}</Text>
+          <Text style={{ color: DARK.sub }}>Tap "New" above to assign homework.</Text>
         </View>
       ) : (
         <ScrollView contentContainerStyle={{ padding: SPACING.md, gap: SPACING.md, paddingBottom: SPACING.xxl }}>
@@ -160,26 +161,26 @@ export default function Homework() {
         </ScrollView>
       )}
 
-      <Modal transparent visible={show} animationType="slide" onRequestClose={() => setShow(false)}>
-        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={styles.overlay}>
+      <InlineOverlay visible={show} onClose={() => setShow(false)}>
+        <View style={styles.overlay}>
           <Pressable style={{ flex: 1 }} onPress={() => setShow(false)} />
           <View style={[styles.sheet, { paddingBottom: insets.bottom + SPACING.lg }]}>
             <ScrollView keyboardShouldPersistTaps="handled">
               <Text style={styles.sheetTitle}>New Homework</Text>
 
               <Text style={styles.label}>Title</Text>
-              <TextInput testID="hw-title" value={title} onChangeText={setTitle} placeholder="Jaise: Chapter 5 ke questions" placeholderTextColor="rgba(255,255,255,0.35)" style={styles.input} />
+              <TextInput testID="hw-title" value={title} onChangeText={setTitle} placeholder="e.g. Chapter 5 questions" placeholderTextColor="rgba(255,255,255,0.35)" style={styles.input} />
 
               <Text style={styles.label}>Details</Text>
               <TextInput
-                testID="hw-desc" value={desc} onChangeText={setDesc} multiline placeholder="Kya karna hai likho"
+                testID="hw-desc" value={desc} onChangeText={setDesc} multiline placeholder="Describe what to do"
                 placeholderTextColor="rgba(255,255,255,0.35)" style={[styles.input, { minHeight: 90, textAlignVertical: "top", paddingTop: 12 }]}
               />
 
               <Text style={styles.label}>Last date</Text>
               <TextInput testID="hw-due" value={due} onChangeText={setDue} placeholder="YYYY-MM-DD" placeholderTextColor="rgba(255,255,255,0.35)" style={styles.input} />
               <View style={styles.wrap}>
-                {([["Kal", 1], ["3 din", 3], ["1 hafta", 7], ["2 hafte", 14]] as [string, number][]).map(([l, n]) => {
+                {([["Tomorrow", 1], ["3 days", 3], ["1 week", 7], ["2 weeks", 14]] as [string, number][]).map(([l, n]) => {
                   const v = addDays(todayStr(), n);
                   return (
                     <Pressable key={l} onPress={() => setDue(v)} style={[styles.chip, due === v && styles.chipOn]}>
@@ -194,12 +195,12 @@ export default function Homework() {
               </View>
 
               <Pressable testID="hw-save" onPress={create} disabled={busy} style={[styles.saveBtn, busy && { opacity: 0.6 }]}>
-                {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveTxt}>Homework Do</Text>}
+                {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveTxt}>Assign Homework</Text>}
               </Pressable>
             </ScrollView>
           </View>
-        </KeyboardAvoidingView>
-      </Modal>
+        </View>
+      </InlineOverlay>
       <ProUpgradeModal visible={pro} onClose={() => setPro(false)} feature="Homework" />
     </View>
   );

@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { InlineOverlay } from "@/src/components/InlineOverlay";
 import {
   View, Text, StyleSheet, FlatList, Pressable, TextInput, ActivityIndicator,
   Modal, KeyboardAvoidingView, Platform, Alert, ScrollView,
@@ -55,7 +56,7 @@ export default function CollectFees() {
 
   const collect = async () => {
     const amt = parseFloat(amount);
-    if (!(amt > 0)) { Alert.alert("Amount daalo", "Sahi amount likho."); return; }
+    if (!(amt > 0)) { Alert.alert("Enter an amount", "Enter a valid amount."); return; }
     setSaving(true);
     try {
       const res: any = await api(`/connections/${sel.id}/installments`, {
@@ -66,7 +67,7 @@ export default function CollectFees() {
       await load();
       router.push(`/teacher/receipt/${res.receipt.receipt_number}` as any);
     } catch (e: any) {
-      Alert.alert("Error", e?.message || "Payment save nahi hui.");
+      Alert.alert("Error", e?.message || "Could not save the payment.");
     }
     setSaving(false);
   };
@@ -85,7 +86,7 @@ export default function CollectFees() {
         <View style={styles.searchWrap}>
           <Ionicons name="search" size={18} color={DARK.sub} />
           <TextInput
-            value={q} onChangeText={setQ} placeholder="Naam, admission no. ya phone" placeholderTextColor="rgba(255,255,255,0.35)"
+            value={q} onChangeText={setQ} placeholder="Name, admission no. or phone" placeholderTextColor="rgba(255,255,255,0.35)"
             style={styles.searchInput}
           />
         </View>
@@ -104,7 +105,7 @@ export default function CollectFees() {
       ) : items.length === 0 ? (
         <View style={styles.center}>
           <Ionicons name="checkmark-circle-outline" size={56} color="rgba(255,255,255,0.25)" />
-          <Text style={{ color: DARK.sub, marginTop: 8 }}>{onlyDue ? "Kisi ki fees baaki nahi hai." : "Koi student nahi mila."}</Text>
+          <Text style={{ color: DARK.sub, marginTop: 8 }}>{onlyDue ? "No pending fees." : "No students found."}</Text>
         </View>
       ) : (
         <FlatList
@@ -127,13 +128,13 @@ export default function CollectFees() {
         />
       )}
 
-      <Modal visible={!!sel} transparent animationType="slide" onRequestClose={() => setSel(null)}>
-        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={styles.overlay}>
+      <InlineOverlay visible={!!sel} onClose={() => setSel(null)}>
+        <View style={styles.overlay}>
           <Pressable style={{ flex: 1 }} onPress={() => setSel(null)} />
           <View style={[styles.sheet, { paddingBottom: insets.bottom + SPACING.lg }]}>
             <ScrollView keyboardShouldPersistTaps="handled">
               <Text style={styles.sheetTitle}>{sel?.student?.name}</Text>
-              <Text style={styles.meta}>{sel?.admission_number} • Baaki: {inr(sel?.due)}</Text>
+              <Text style={styles.meta}>{sel?.admission_number} • Pending: {inr(sel?.due)}</Text>
 
               <Text style={styles.label}>Amount</Text>
               <TextInput
@@ -142,7 +143,7 @@ export default function CollectFees() {
               />
               {sel?.due > 0 && (
                 <Pressable onPress={() => setAmount(String(Math.round(sel.due)))}>
-                  <Text style={styles.fullLink}>Poori baaki fees ({inr(sel.due)}) bharo</Text>
+                  <Text style={styles.fullLink}>Pay the full pending amount ({inr(sel.due)})</Text>
                 </Pressable>
               )}
 
@@ -157,17 +158,17 @@ export default function CollectFees() {
 
               <Text style={styles.label}>Note (optional)</Text>
               <TextInput
-                value={notes} onChangeText={setNotes} placeholder="Jaise: March ki fees"
+                value={notes} onChangeText={setNotes} placeholder="e.g. March fees"
                 placeholderTextColor="rgba(255,255,255,0.35)" style={styles.input}
               />
 
               <Pressable onPress={collect} disabled={saving} style={[styles.saveBtn, saving && { opacity: 0.6 }]}>
-                {saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveTxt}>Collect & Receipt Banao</Text>}
+                {saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveTxt}>Collect & Generate Receipt</Text>}
               </Pressable>
             </ScrollView>
           </View>
-        </KeyboardAvoidingView>
-      </Modal>
+        </View>
+      </InlineOverlay>
     </View>
   );
 }

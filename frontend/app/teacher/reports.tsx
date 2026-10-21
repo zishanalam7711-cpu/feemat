@@ -66,19 +66,19 @@ export default function Reports() {
     const o = data.overview;
     if (o.collected_prev > 0) {
       const ch = Math.round(((o.collected_month - o.collected_prev) / o.collected_prev) * 100);
-      if (ch >= 0) out.push({ icon: "trending-up", color: "#10B981", text: `Is mahine ki collection pichle mahine se ${ch}% zyada hai.` });
-      else out.push({ icon: "trending-down", color: "#EF4444", text: `Is mahine ki collection pichle mahine se ${Math.abs(ch)}% kam hai.` });
+      if (ch >= 0) out.push({ icon: "trending-up", color: "#10B981", text: `This month's collection is ${ch}% higher than last month.` });
+      else out.push({ icon: "trending-down", color: "#EF4444", text: `This month's collection is ${Math.abs(ch)}% lower than last month.` });
     }
     const long = (data.defaulters || []).filter((d: any) => d.pending_months >= 3).length;
-    if (long > 0) out.push({ icon: "alert-circle", color: "#EF4444", text: `${long} students ki 3 ya zyada mahine ki fees baaki hai.` });
+    if (long > 0) out.push({ icon: "alert-circle", color: "#EF4444", text: `${long} students have 3 or more months of fees pending.` });
     const cp = (data.class_pending || []).filter((c: any) => c.due > 0);
-    if (cp.length > 1) out.push({ icon: "school", color: "#F59E0B", text: `${cp[0].class} mein sabse zyada fees baaki hai (${inr(cp[0].due)}).` });
+    if (cp.length > 1) out.push({ icon: "school", color: "#F59E0B", text: `${cp[0].class} has the most pending fees (${inr(cp[0].due)}).` });
     const bc = data.attendance?.by_class || [];
-    if (bc.length > 1) out.push({ icon: "calendar", color: "#F59E0B", text: `${bc[0].class} ki attendance sabse kam hai (${bc[0].avg}%).` });
+    if (bc.length > 1) out.push({ icon: "calendar", color: "#F59E0B", text: `${bc[0].class} has the lowest attendance (${bc[0].avg}%).` });
     const sj = data.exams?.subjects || [];
-    if (sj.length > 1) out.push({ icon: "book", color: "#3B82F6", text: `${sj[0].subject} sabse kamzor subject hai (average ${sj[0].avg}%).` });
-    if ((data.attention || []).length > 0) out.push({ icon: "eye", color: "#A855F7", text: `${data.attention.length} students par extra dhyan dene ki zarurat hai.` });
-    if (out.length === 0) out.push({ icon: "sparkles", color: "#A855F7", text: "Abhi sab theek lag raha hai. Jaise-jaise data badhega, yahan sujhav aayenge." });
+    if (sj.length > 1) out.push({ icon: "book", color: "#3B82F6", text: `${sj[0].subject} is the weakest subject (average ${sj[0].avg}%).` });
+    if ((data.attention || []).length > 0) out.push({ icon: "eye", color: "#A855F7", text: `${data.attention.length} students need extra attention.` });
+    if (out.length === 0) out.push({ icon: "sparkles", color: "#A855F7", text: "Everything looks fine for now. Suggestions will appear here as your data grows." });
     return out;
   }, [data]);
 
@@ -88,8 +88,8 @@ export default function Reports() {
     const msg =
       `📊 FeeMat Summary — ${fullMonth(data.month)}\n\n` +
       `👥 Students: ${o.students}\n` +
-      `💰 Is mahine collection: ${inr(o.collected_month)}\n` +
-      `⏳ Total baaki: ${inr(o.total_due)}\n` +
+      `💰 Collected this month: ${inr(o.collected_month)}\n` +
+      `⏳ Total pending: ${inr(o.total_due)}\n` +
       `📈 Collection rate: ${o.collection_rate}%\n` +
       `🗓️ Attendance average: ${o.attendance_avg}%` +
       (o.last_exam_avg != null ? `\n📝 Last exam average: ${o.last_exam_avg}%` : "");
@@ -98,25 +98,25 @@ export default function Reports() {
 
   const whatsappDue = (d: any) => {
     const num = waNumber(d.phone);
-    if (!num) { Alert.alert("Phone number nahi hai", "Is student ka phone number profile mein nahi hai."); return; }
-    const msg = `Namaste, ${d.name} ki ${d.pending_months} mahine ki fees baaki hai (${inr(d.due)}). Kripya jaldi jama karein. Dhanyavaad.`;
+    if (!num) { Alert.alert("No phone number", "This student has no phone number saved."); return; }
+    const msg = `Hello, ${d.name} has ${d.pending_months} month(s) of fees pending (${inr(d.due)}). Please pay at your earliest convenience. Thank you.`;
     Linking.openURL(`https://wa.me/${num}?text=${encodeURIComponent(msg)}`).catch(() => {});
   };
 
   const shareDefaulters = async () => {
     const list = data?.defaulters || [];
     if (!list.length) return;
-    const lines = list.map((d: any, i: number) => `${i + 1}. ${d.name} (${d.class_name}) — ${inr(d.due)} • ${d.pending_months} mahine`);
-    await Share.share({ message: `Baaki fees ki list — ${fullMonth(data.month)}\n\n${lines.join("\n")}` });
+    const lines = list.map((d: any, i: number) => `${i + 1}. ${d.name} (${d.class_name}) — ${inr(d.due)} • ${d.pending_months} month(s)`);
+    await Share.share({ message: `Pending fees list — ${fullMonth(data.month)}\n\n${lines.join("\n")}` });
   };
 
   const runReminders = async () => {
     setSending(true);
     try {
       await api("/teacher/reminders/run", { method: "POST" });
-      Alert.alert("Reminder bhej diye", "Fees baaki wale students ko app mein reminder chala gaya.");
+      Alert.alert("Reminders sent", "Students with pending fees have been sent a reminder in the app.");
     } catch (e: any) {
-      Alert.alert("Error", e?.message || "Reminder nahi gaya.");
+      Alert.alert("Error", e?.message || "Could not send reminders.");
     }
     setSending(false);
   };
@@ -143,9 +143,9 @@ export default function Reports() {
       {header}
       <View style={styles.center}>
         <Ionicons name="cloud-offline-outline" size={56} color="rgba(255,255,255,0.25)" />
-        <Text style={{ color: DARK.sub, marginTop: 8, textAlign: "center", paddingHorizontal: 30 }}>Report load nahi hui. Internet check karo, ya thodi der baad dobara try karo.</Text>
+        <Text style={{ color: DARK.sub, marginTop: 8, textAlign: "center", paddingHorizontal: 30 }}>Could not load the report. Check your internet connection and try again.</Text>
         <Pressable onPress={() => { setLoading(true); load().finally(() => setLoading(false)); }} style={styles.retry}>
-          <Text style={{ color: "#fff", fontWeight: "700" }}>Dobara try karo</Text>
+          <Text style={{ color: "#fff", fontWeight: "700" }}>Try again</Text>
         </Pressable>
       </View>
     </View>
@@ -176,15 +176,15 @@ export default function Reports() {
           <>
             <View style={styles.grid}>
               <Stat icon="people" color="#A855F7" label="Students" value={String(ov.students)} />
-              <Stat icon="cash" color="#10B981" label="Is mahine collection" value={inr(ov.collected_month)}
-                sub={delta === null ? undefined : `${delta >= 0 ? "▲" : "▼"} ${Math.abs(delta)}% pichle mahine se`} subColor={delta !== null && delta >= 0 ? "#10B981" : "#EF4444"} />
-              <Stat icon="hourglass" color="#EF4444" label="Total baaki" value={inr(ov.total_due)} />
+              <Stat icon="cash" color="#10B981" label="Collected this month" value={inr(ov.collected_month)}
+                sub={delta === null ? undefined : `${delta >= 0 ? "▲" : "▼"} ${Math.abs(delta)}% vs last month`} subColor={delta !== null && delta >= 0 ? "#10B981" : "#EF4444"} />
+              <Stat icon="hourglass" color="#EF4444" label="Total pending" value={inr(ov.total_due)} />
               <Stat icon="speedometer" color="#3B82F6" label="Collection rate" value={`${ov.collection_rate}%`} />
             </View>
 
             <View style={styles.todayBox}>
               <Ionicons name="today" size={18} color="#F59E0B" />
-              <Text style={styles.todayTxt}>Aaj jama hua: <Text style={{ fontWeight: "800", color: "#fff" }}>{inr(ov.collected_today)}</Text></Text>
+              <Text style={styles.todayTxt}>Collected today: <Text style={{ fontWeight: "800", color: "#fff" }}>{inr(ov.collected_today)}</Text></Text>
             </View>
 
             <Card title="Smart Insights">
@@ -196,7 +196,7 @@ export default function Reports() {
               ))}
             </Card>
 
-            <Card title="Pichle 6 mahine ki collection">
+            <Card title="Last 6 months collection">
               <View style={styles.chart}>
                 {data.monthly_collection.map((x: any) => (
                   <View key={x.month} style={styles.bar}>
@@ -209,13 +209,13 @@ export default function Reports() {
             </Card>
 
             <View style={styles.grid}>
-              <Stat icon="calendar" color="#14B8A6" label="Attendance avg (is mahine)" value={`${ov.attendance_avg}%`} />
+              <Stat icon="calendar" color="#14B8A6" label="Attendance avg (this month)" value={`${ov.attendance_avg}%`} />
               <Stat icon="document-text" color="#F59E0B" label="Last exam average" value={ov.last_exam_avg == null ? "—" : `${ov.last_exam_avg}%`} />
             </View>
 
-            <Card title={`Dhyan dene wale students (${data.attention.length})`}>
+            <Card title={`Students needing attention (${data.attention.length})`}>
               {data.attention.length === 0 ? (
-                <Text style={styles.empty}>Abhi koi nahi. Sab theek chal raha hai 🎉</Text>
+                <Text style={styles.empty}>None right now. Everything is on track 🎉</Text>
               ) : (
                 data.attention.map((a: any) => (
                   <Pressable key={a.connection_id} style={styles.listRow} onPress={() => router.push(`/teacher/student/${a.connection_id}` as any)}>
@@ -239,9 +239,9 @@ export default function Reports() {
         {/* ================= FEES ================= */}
         {tab === "fees" && (
           <>
-            <Card title="Payment ka tarika (is mahine)">
+            <Card title="Payment methods (this month)">
               {methodsArr.length === 0 ? (
-                <Text style={styles.empty}>Is mahine abhi koi payment nahi aayi.</Text>
+                <Text style={styles.empty}>No payments received this month yet.</Text>
               ) : (
                 methodsArr.sort((a, b) => b[1] - a[1]).map(([m, v]) => (
                   <View key={m} style={{ marginTop: 10 }}>
@@ -255,8 +255,8 @@ export default function Reports() {
               )}
             </Card>
 
-            <Card title="Class-wise baaki fees">
-              {data.class_pending.length === 0 ? <Text style={styles.empty}>Koi class nahi mili.</Text> :
+            <Card title="Class-wise pending fees">
+              {data.class_pending.length === 0 ? <Text style={styles.empty}>No classes found.</Text> :
                 data.class_pending.map((c: any) => (
                   <View key={c.class} style={styles.listRow}>
                     <View style={{ flex: 1 }}>
@@ -270,21 +270,21 @@ export default function Reports() {
 
             <View style={{ flexDirection: "row", gap: SPACING.sm }}>
               <Pressable onPress={runReminders} disabled={sending} style={[styles.action, { backgroundColor: "#7C3AED" }, sending && { opacity: 0.6 }]}>
-                {sending ? <ActivityIndicator color="#fff" /> : (<><Ionicons name="notifications" size={16} color="#fff" /><Text style={styles.actionTxt}>Sab ko Reminder</Text></>)}
+                {sending ? <ActivityIndicator color="#fff" /> : (<><Ionicons name="notifications" size={16} color="#fff" /><Text style={styles.actionTxt}>Remind All</Text></>)}
               </Pressable>
               <Pressable onPress={shareDefaulters} style={[styles.action, { backgroundColor: "rgba(168,85,247,0.18)" }]}>
                 <Ionicons name="share-social" size={16} color="#A855F7" />
-                <Text style={[styles.actionTxt, { color: "#A855F7" }]}>List Share</Text>
+                <Text style={[styles.actionTxt, { color: "#A855F7" }]}>Share List</Text>
               </Pressable>
             </View>
 
-            <Card title={`Baaki fees wale (${data.defaulters.length})`}>
-              {data.defaulters.length === 0 ? <Text style={styles.empty}>Kisi ki fees baaki nahi hai 🎉</Text> :
+            <Card title={`Pending fees (${data.defaulters.length})`}>
+              {data.defaulters.length === 0 ? <Text style={styles.empty}>No pending fees 🎉</Text> :
                 data.defaulters.map((d: any) => (
                   <View key={d.connection_id} style={styles.listRow}>
                     <Pressable style={{ flex: 1 }} onPress={() => router.push(`/teacher/student/${d.connection_id}` as any)}>
                       <Text style={styles.name}>{d.name}</Text>
-                      <Text style={styles.meta}>{d.class_name} • {d.pending_months} mahine se ({fullMonth(d.oldest_month)})</Text>
+                      <Text style={styles.meta}>{d.class_name} • {d.pending_months} month(s) since ({fullMonth(d.oldest_month)})</Text>
                     </Pressable>
                     <Text style={[styles.amt, { color: "#F87171" }]}>{inr(d.due)}</Text>
                     <Pressable onPress={() => whatsappDue(d)} hitSlop={8} style={styles.waBtn}>
@@ -301,11 +301,11 @@ export default function Reports() {
           <>
             <View style={styles.grid}>
               <Stat icon="calendar" color="#14B8A6" label={`Average (${fullMonth(data.month)})`} value={`${data.attendance.avg}%`} />
-              <Stat icon="today" color="#3B82F6" label="Din lage (is mahine)" value={String(data.attendance.days_marked)} />
+              <Stat icon="today" color="#3B82F6" label="Days marked (this month)" value={String(data.attendance.days_marked)} />
             </View>
 
             <Card title="Class-wise average">
-              {data.attendance.by_class.length === 0 ? <Text style={styles.empty}>Is mahine ka attendance data nahi hai.</Text> :
+              {data.attendance.by_class.length === 0 ? <Text style={styles.empty}>No attendance data for this month.</Text> :
                 data.attendance.by_class.map((c: any) => (
                   <View key={c.class} style={{ marginTop: 10 }}>
                     <View style={styles.rowBetween}>
@@ -317,13 +317,13 @@ export default function Reports() {
                 ))}
             </Card>
 
-            <Card title={`75% se kam attendance (${data.attendance.low.length})`}>
-              {data.attendance.low.length === 0 ? <Text style={styles.empty}>Sab ki attendance 75% se upar hai 👏</Text> :
+            <Card title={`Attendance below 75% (${data.attendance.low.length})`}>
+              {data.attendance.low.length === 0 ? <Text style={styles.empty}>Everyone is above 75% attendance 👏</Text> :
                 data.attendance.low.map((r: any) => (
                   <Pressable key={r.connection_id} style={styles.listRow} onPress={() => router.push(`/teacher/student/${r.connection_id}` as any)}>
                     <View style={{ flex: 1 }}>
                       <Text style={styles.name}>{r.name}</Text>
-                      <Text style={styles.meta}>{r.class_name} • {r.absent} din absent</Text>
+                      <Text style={styles.meta}>{r.class_name} • {r.absent} day(s) absent</Text>
                     </View>
                     <Text style={[styles.amt, { color: pctColor(r.pct) }]}>{r.pct}%</Text>
                   </Pressable>
@@ -331,7 +331,7 @@ export default function Reports() {
             </Card>
 
             <Card title="Sabse regular students 🌟">
-              {data.attendance.regular.length === 0 ? <Text style={styles.empty}>Abhi kam data hai.</Text> :
+              {data.attendance.regular.length === 0 ? <Text style={styles.empty}>Not enough data yet.</Text> :
                 data.attendance.regular.map((r: any, i: number) => (
                   <View key={r.connection_id} style={styles.listRow}>
                     <Text style={styles.rank}>{i + 1}</Text>
@@ -349,8 +349,8 @@ export default function Reports() {
         {/* ================= EXAMS ================= */}
         {tab === "exams" && (
           <>
-            <Card title="Exam-wise average (naye neeche)">
-              {data.exams.trend.length === 0 ? <Text style={styles.empty}>Abhi kisi exam ke marks nahi daale gaye.</Text> :
+            <Card title="Exam-wise average">
+              {data.exams.trend.length === 0 ? <Text style={styles.empty}>No exam marks have been entered yet.</Text> :
                 data.exams.trend.map((t: any, i: number) => (
                   <View key={i} style={{ marginTop: 10 }}>
                     <View style={styles.rowBetween}>
@@ -365,8 +365,8 @@ export default function Reports() {
                 ))}
             </Card>
 
-            <Card title="Subject-wise average (kamzor upar)">
-              {data.exams.subjects.length === 0 ? <Text style={styles.empty}>Abhi data nahi hai.</Text> :
+            <Card title="Subject-wise average (weakest first)">
+              {data.exams.subjects.length === 0 ? <Text style={styles.empty}>No data yet.</Text> :
                 data.exams.subjects.map((s: any, i: number) => (
                   <View key={s.subject} style={{ marginTop: 10 }}>
                     <View style={styles.rowBetween}>
@@ -378,8 +378,8 @@ export default function Reports() {
                 ))}
             </Card>
 
-            <Card title={`2 ya zyada exam mein fail (${data.exams.repeat_fail.length})`}>
-              {data.exams.repeat_fail.length === 0 ? <Text style={styles.empty}>Koi nahi 👍</Text> :
+            <Card title={`Failed 2 or more exams (${data.exams.repeat_fail.length})`}>
+              {data.exams.repeat_fail.length === 0 ? <Text style={styles.empty}>None 👍</Text> :
                 data.exams.repeat_fail.map((r: any) => (
                   <Pressable key={r.connection_id} style={styles.listRow} onPress={() => router.push(`/teacher/student/${r.connection_id}` as any)}>
                     <View style={{ flex: 1 }}>
@@ -391,8 +391,8 @@ export default function Reports() {
                 ))}
             </Card>
 
-            <Card title="Toppers (saare exams milake) 🏆">
-              {data.exams.toppers.length === 0 ? <Text style={styles.empty}>Abhi data nahi hai.</Text> :
+            <Card title="Top performers (all exams) 🏆">
+              {data.exams.toppers.length === 0 ? <Text style={styles.empty}>No data yet.</Text> :
                 data.exams.toppers.map((t: any, i: number) => (
                   <View key={t.connection_id} style={styles.listRow}>
                     <Text style={styles.rank}>{i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : i + 1}</Text>

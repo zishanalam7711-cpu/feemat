@@ -26,7 +26,7 @@ type Opt = {
   badge?: "requests";
 };
 
-// 16 options. Jo screens abhi nahi bani unme `soon` hai (Coming Soon).
+// 16 options. Screens that are not built yet carry a `soon` message (Coming Soon).
 const OPTIONS: Opt[] = [
   { label: "Students", icon: "people", color: "#A855F7", route: "/teacher/students" },
   { label: "Classes", icon: "school", color: "#F59E0B", route: "/teacher/classes" },
@@ -39,8 +39,8 @@ const OPTIONS: Opt[] = [
   { label: "Reports", icon: "bar-chart", color: "#EC4899", route: "/teacher/reports" },
   { label: "Announce", icon: "megaphone", color: "#8B5CF6", route: "/teacher/announcements" },
   { label: "Alerts", icon: "notifications", color: "#F97316", route: "/teacher/notifications" },
-  { label: "Timetable", icon: "calendar", color: "#38BDF8", soon: "Timetable jaldi aa raha hai." },
-  { label: "UPI Pay", icon: "qr-code", color: "#34D399", soon: "UPI QR aur online fees jaldi aa raha hai." },
+  { label: "Timetable", icon: "calendar", color: "#38BDF8", soon: "Timetable is coming soon." },
+  { label: "UPI Pay", icon: "qr-code", color: "#34D399", soon: "UPI QR and online fees are coming soon." },
   { label: "Requests", icon: "mail-unread", color: "#F472B6", route: "/teacher/requests", badge: "requests" },
   { label: "Pro Plan", icon: "rocket", color: "#06B6D4", route: "/teacher/subscription" },
   { label: "Profile", icon: "person-circle", color: "#A78BFA", route: "/teacher/profile" },
@@ -65,7 +65,7 @@ export default function TeacherDashboard() {
 
   const open = (o: Opt) => {
     if (o.route) router.push(o.route as any);
-    else Alert.alert("Coming Soon", o.soon || "Ye feature jaldi aa raha hai.");
+    else Alert.alert("Coming Soon", o.soon || "This feature is coming soon.");
   };
 
   return (

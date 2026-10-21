@@ -93,7 +93,7 @@ export default function TeacherProfileScreen() {
         <View style={styles.section}>
           <Text style={styles.sectTitle}>Payment</Text>
           <Input label="UPI ID / UPI Number" value={t.upi_id || ""} onChangeText={(v) => patch("upi_id", v)} autoCapitalize="none" />
-          <PhotoPicker label="Payment QR Code" shape="square" size={150} value={t.qr_url} onChange={(v) => patch("qr_url", v)} hint="PhonePe / GPay / Paytm ka QR (screenshot bhi chalega). Chuno, phir Save dabao." />
+          <PhotoPicker label="Payment QR Code" shape="square" size={150} value={t.qr_url} onChange={(v) => patch("qr_url", v)} hint="PhonePe / GPay / Paytm QR (a screenshot works too). Pick it, then tap Save." />
         </View>
 
         <View style={styles.section}>

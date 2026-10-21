@@ -63,10 +63,10 @@ export default function AddStudent() {
   };
 
   const save = async () => {
-    if (!name.trim()) { Alert.alert("Naam likho", "Student ka naam zaroori hai."); return; }
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(joined)) { Alert.alert("Date galat hai", "Joining date YYYY-MM-DD format mein likho."); return; }
+    if (!name.trim()) { Alert.alert("Enter a name", "Student name is required."); return; }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(joined)) { Alert.alert("Invalid date", "Enter the joining date as YYYY-MM-DD."); return; }
     const d = parseFloat(disc || "0");
-    if (isNaN(d) || d < 0 || d > 100) { Alert.alert("Discount galat hai", "Discount 0 se 100 ke beech hona chahiye."); return; }
+    if (isNaN(d) || d < 0 || d > 100) { Alert.alert("Invalid discount", "Discount must be between 0 and 100."); return; }
     setBusy(true);
     try {
       const cls = classes.find((c) => c.id === classId);
@@ -80,21 +80,21 @@ export default function AddStudent() {
       });
       setDone(res);
     } catch (e: any) {
-      const msg = String(e?.message || "Student nahi juda.");
+      const msg = String(e?.message || "Could not add the student.");
       if (msg.includes("Free plan limit")) {
-        Alert.alert("Free limit poori ho gayi", msg, [
-          { text: "Baad mein" },
-          { text: "Pro dekho", onPress: () => router.push("/teacher/subscription" as any) },
+        Alert.alert("Free plan limit reached", msg, [
+          { text: "Later" },
+          { text: "See Pro", onPress: () => router.push("/teacher/subscription" as any) },
         ]);
       } else Alert.alert("Error", msg);
     } finally { setBusy(false); }
   };
 
   const codeMessage = (conn: any) =>
-    `Namaste ${name.trim()}, aapka record ${teacherName || "hamari coaching"} mein FeeMat pe ban gaya hai.\n` +
+    `Hello ${name.trim()}, your record has been created at ${teacherName || "our institute"} on FeeMat.\n` +
     `Admission No: ${conn.admission_number}\n\n` +
-    `Agar aap FeeMat app use karna chahein to app install karke "Student Sign Up" karte waqt ye code daalo:\n` +
-    `🔑 ${conn.claim_code}\n\nIsse aapki fees, attendance aur marks sab aapke account mein aa jayenge.`;
+    `To use the FeeMat app, install it and enter this code when you choose "Student Sign Up":\n` +
+    `🔑 ${conn.claim_code}\n\nYour fees, attendance and marks will then appear in your own account.`;
 
   const sendCode = async (conn: any) => {
     const msg = codeMessage(conn);
@@ -109,7 +109,7 @@ export default function AddStudent() {
   const header = (
     <View style={[styles.header, { paddingTop: insets.top + SPACING.md }]}>
       <Pressable onPress={() => router.back()} hitSlop={12}><Ionicons name="arrow-back" size={22} color="#fff" /></Pressable>
-      <Text style={styles.title}>{done ? "Student Juda" : "Student Jodo"}</Text>
+      <Text style={styles.title}>{done ? "Student Added" : "Add Student"}</Text>
     </View>
   );
 
@@ -121,31 +121,31 @@ export default function AddStudent() {
         <ScrollView contentContainerStyle={{ padding: SPACING.lg, gap: SPACING.md, paddingBottom: SPACING.xxl }}>
           <View style={styles.okCard}>
             <View style={styles.okIcon}><Ionicons name="checkmark" size={34} color="#fff" /></View>
-            <Text style={styles.okTitle}>{name.trim()} ka record ban gaya</Text>
+            <Text style={styles.okTitle}>{name.trim()} has been added</Text>
             <Text style={styles.okSub}>Admission No: {done.admission_number}</Text>
           </View>
 
           <View style={styles.codeCard}>
-            <Text style={styles.codeLbl}>App ka code (student ko dena)</Text>
+            <Text style={styles.codeLbl}>App code (give this to the student)</Text>
             <Text style={styles.code} selectable>{done.claim_code}</Text>
             <Text style={styles.codeHint}>
-              Student jab app mein "Student Sign Up" kare aur ye code daale, to uski fees, attendance aur marks sab uske account mein aa jayenge. Code sirf ek baar chalta hai.
+              When the student signs up in the app (Student Sign Up) and enters this code, their fees, attendance and marks move to their account. The code works only once.
             </Text>
           </View>
 
           <Pressable onPress={() => sendCode(done)} style={[styles.big, { backgroundColor: "#25D366" }]}>
             <Ionicons name="logo-whatsapp" size={20} color="#fff" />
-            <Text style={styles.bigTxt}>{phone.trim() ? "WhatsApp pe code bhejo" : "Code share karo"}</Text>
+            <Text style={styles.bigTxt}>{phone.trim() ? "Send code on WhatsApp" : "Share code"}</Text>
           </Pressable>
           <Pressable onPress={() => router.replace(`/teacher/student/${done.id}` as any)} style={[styles.big, { backgroundColor: "#7C3AED" }]}>
             <Ionicons name="person" size={20} color="#fff" />
-            <Text style={styles.bigTxt}>Student ki detail kholo (fees lo)</Text>
+            <Text style={styles.bigTxt}>Open student details (collect fees)</Text>
           </Pressable>
           <Pressable onPress={reset} style={[styles.big, { backgroundColor: "rgba(168,85,247,0.18)" }]}>
             <Ionicons name="person-add" size={20} color="#A855F7" />
-            <Text style={[styles.bigTxt, { color: "#A855F7" }]}>Aur student jodo</Text>
+            <Text style={[styles.bigTxt, { color: "#A855F7" }]}>Add another student</Text>
           </Pressable>
-          <Text style={styles.note}>Code baad mein bhi student ki detail screen mein dikhega, jab tak student app se nahi judta.</Text>
+          <Text style={styles.note}>The code stays visible on the student's detail screen until the student joins the app.</Text>
         </ScrollView>
       </View>
     );
@@ -159,20 +159,20 @@ export default function AddStudent() {
         <ScrollView contentContainerStyle={{ padding: SPACING.lg, paddingBottom: 120 }} keyboardShouldPersistTaps="handled">
           <View style={styles.infoBox}>
             <Ionicons name="information-circle" size={18} color="#A855F7" />
-            <Text style={styles.infoTxt}>Student ke paas app na ho tab bhi aap uska record bana sakte ho. Fees, attendance, marks sab chalega.</Text>
+            <Text style={styles.infoTxt}>You can create a record even if the student doesn't have the app. Fees, attendance and marks all work.</Text>
           </View>
 
           <View style={{ marginTop: SPACING.lg }}>
             <PhotoPicker label="Photo (optional)" name={name} value={photo} onChange={setPhoto} />
           </View>
 
-          <Label t="Naam *" />
-          <TextInput testID="ms-name" value={name} onChangeText={setName} placeholder="Student ka poora naam" placeholderTextColor="rgba(255,255,255,0.35)" style={styles.input} />
+          <Label t="Name *" />
+          <TextInput testID="ms-name" value={name} onChangeText={setName} placeholder="Student full name" placeholderTextColor="rgba(255,255,255,0.35)" style={styles.input} />
 
-          <Label t="Father ka naam" />
+          <Label t="Father's name" />
           <TextInput testID="ms-father" value={father} onChangeText={setFather} placeholder="Father / guardian" placeholderTextColor="rgba(255,255,255,0.35)" style={styles.input} />
 
-          <Label t="Phone number (WhatsApp wala)" />
+          <Label t="Phone number (WhatsApp)" />
           <TextInput testID="ms-phone" value={phone} onChangeText={setPhone} keyboardType="phone-pad" placeholder="10 digit number" placeholderTextColor="rgba(255,255,255,0.35)" style={styles.input} />
 
           {classes.length > 0 && (
@@ -196,7 +196,7 @@ export default function AddStudent() {
             </>
           )}
           {classes.length === 0 && batches.length === 0 && (
-            <Text style={styles.hint}>Class ya batch chuna ho to pehle "Classes" mein banao.</Text>
+            <Text style={styles.hint}>To choose a class or batch, create it first in "Classes".</Text>
           )}
 
           <View style={{ flexDirection: "row", gap: SPACING.md }}>
@@ -213,16 +213,16 @@ export default function AddStudent() {
           <Label t="Joining date (YYYY-MM-DD)" />
           <TextInput testID="ms-joined" value={joined} onChangeText={setJoined} placeholder="2026-10-01" placeholderTextColor="rgba(255,255,255,0.35)" style={styles.input} />
           <View style={styles.wrap}>
-            <Chip label="Aaj" on={joined === todayStr()} onPress={() => setJoined(todayStr())} />
-            <Chip label="Is mahine ki 1 tareekh" on={joined === firstOfMonth()} onPress={() => setJoined(firstOfMonth())} />
+            <Chip label="Today" on={joined === todayStr()} onPress={() => setJoined(todayStr())} />
+            <Chip label="1st of this month" on={joined === firstOfMonth()} onPress={() => setJoined(firstOfMonth())} />
           </View>
-          <Text style={styles.hint}>Joining date se hi mahine ki fees banni shuru hoti hai. Purani date daaloge to purane mahine ki fees bhi baaki dikhegi.</Text>
+          <Text style={styles.hint}>Monthly fees start from the joining date. If you enter an older date, fees for the earlier months will also show as pending.</Text>
         </ScrollView>
       </KeyboardAvoidingView>
 
       <View style={[styles.footer, { paddingBottom: insets.bottom + SPACING.md }]}>
         <Pressable testID="ms-save" onPress={save} disabled={busy} style={[styles.saveBtn, busy && { opacity: 0.6 }]}>
-          {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveTxt}>Student Jodo</Text>}
+          {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveTxt}>Add Student</Text>}
         </Pressable>
       </View>
     </View>

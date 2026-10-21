@@ -1,4 +1,5 @@
 import React, { useCallback, useState } from "react";
+import { InlineOverlay } from "@/src/components/InlineOverlay";
 import {
   View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, Modal, KeyboardAvoidingView, Platform, TextInput, Alert,
 } from "react-native";
@@ -23,10 +24,10 @@ const DARK = {
 
 const CATEGORIES = [
   { k: "notice", emoji: "📢", label: "Notice", tpl: "" },
-  { k: "holiday", emoji: "🏖️", label: "Holiday", tpl: "Kal class band rahegi. Agli class normal time par hogi." },
-  { k: "exam", emoji: "📝", label: "Exam", tpl: "Test ki date aur syllabus: " },
-  { k: "fee", emoji: "💰", label: "Fee", tpl: "Is mahine ki fees jama karne ki yaad dilayi jaati hai." },
-  { k: "timing", emoji: "⏰", label: "Timing", tpl: "Class ka naya time: " },
+  { k: "holiday", emoji: "🏖️", label: "Holiday", tpl: "Classes will be closed tomorrow. The next class will be at the regular time." },
+  { k: "exam", emoji: "📝", label: "Exam", tpl: "Test date and syllabus: " },
+  { k: "fee", emoji: "💰", label: "Fee", tpl: "This is a reminder to pay this month's fees." },
+  { k: "timing", emoji: "⏰", label: "Timing", tpl: "New class timing: " },
 ];
 
 export default function Announcements() {
@@ -68,8 +69,8 @@ export default function Announcements() {
   const reset = () => { setTitle(""); setBody(""); setCat(CATEGORIES[0]); setAud(EVERYONE); };
 
   const create = async () => {
-    if (!title.trim()) { Alert.alert("Title likho", "Announcement ka title daalo."); return; }
-    if (!audienceValid(aud)) { Alert.alert("Kisko bhejna hai?", "Class, batch ya students chuno."); return; }
+    if (!title.trim()) { Alert.alert("Enter a title", "Enter the announcement title."); return; }
+    if (!audienceValid(aud)) { Alert.alert("Who should receive this?", "Choose a class, batch or students."); return; }
     setBusy(true);
     try {
       await api("/teacher/announcements", {
@@ -80,7 +81,7 @@ export default function Announcements() {
       await load();
     } catch (e: any) {
       if (String(e?.message || "").includes("Upgrade to Pro")) { setShow(false); setPro(true); }
-      else Alert.alert("Error", e?.message || "Announcement nahi gayi.");
+      else Alert.alert("Error", e?.message || "Could not send the announcement.");
     } finally { setBusy(false); }
   };
 
@@ -100,8 +101,8 @@ export default function Announcements() {
       ) : items.length === 0 ? (
         <View style={styles.center}>
           <Ionicons name="megaphone-outline" size={56} color="rgba(255,255,255,0.25)" />
-          <Text style={styles.emptyTxt}>Abhi koi announcement nahi hai</Text>
-          <Text style={{ color: DARK.sub }}>Holiday, exam ya fee ka notice bhejo.</Text>
+          <Text style={styles.emptyTxt}>No announcements yet</Text>
+          <Text style={{ color: DARK.sub }}>Send a holiday, exam or fee notice.</Text>
         </View>
       ) : (
         <ScrollView contentContainerStyle={{ padding: SPACING.md, gap: SPACING.md, paddingBottom: SPACING.xxl }}>
@@ -120,8 +121,8 @@ export default function Announcements() {
         </ScrollView>
       )}
 
-      <Modal transparent visible={show} animationType="slide" onRequestClose={() => setShow(false)}>
-        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={styles.overlay}>
+      <InlineOverlay visible={show} onClose={() => setShow(false)}>
+        <View style={styles.overlay}>
           <Pressable style={{ flex: 1 }} onPress={() => setShow(false)} />
           <View style={[styles.sheet, { paddingBottom: insets.bottom + SPACING.lg }]}>
             <ScrollView keyboardShouldPersistTaps="handled">
@@ -140,11 +141,11 @@ export default function Announcements() {
               </View>
 
               <Text style={styles.label}>Title</Text>
-              <TextInput testID="a-title" value={title} onChangeText={setTitle} placeholder="Jaise: Kal chhutti hai" placeholderTextColor="rgba(255,255,255,0.35)" style={styles.input} />
+              <TextInput testID="a-title" value={title} onChangeText={setTitle} placeholder="e.g. Holiday tomorrow" placeholderTextColor="rgba(255,255,255,0.35)" style={styles.input} />
 
               <Text style={styles.label}>Message</Text>
               <TextInput
-                testID="a-body" value={body} onChangeText={setBody} multiline placeholder="Poora message likho"
+                testID="a-body" value={body} onChangeText={setBody} multiline placeholder="Write the full message"
                 placeholderTextColor="rgba(255,255,255,0.35)" style={[styles.input, { minHeight: 100, textAlignVertical: "top", paddingTop: 12 }]}
               />
 
@@ -153,12 +154,12 @@ export default function Announcements() {
               </View>
 
               <Pressable testID="a-save" onPress={create} disabled={busy} style={[styles.saveBtn, busy && { opacity: 0.6 }]}>
-                {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveTxt}>Bhejo</Text>}
+                {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveTxt}>Send</Text>}
               </Pressable>
             </ScrollView>
           </View>
-        </KeyboardAvoidingView>
-      </Modal>
+        </View>
+      </InlineOverlay>
       <ProUpgradeModal visible={pro} onClose={() => setPro(false)} feature="Announcements" />
     </View>
   );

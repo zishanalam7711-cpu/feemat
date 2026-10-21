@@ -85,7 +85,7 @@ export default function StudentsScreen() {
         <View style={styles.center}>
           <Ionicons name="people-outline" size={56} color={COLORS.borderStrong} />
           <Text style={styles.empty}>No students yet</Text>
-          <Text style={styles.emptySub}>Student requests accept karo, ya upar "Add" se bina app wala student jodo.</Text>
+          <Text style={styles.emptySub}>Accept student requests, or use "Add" above to add a student who does not have the app.</Text>
         </View>
       ) : (
         <FlatList
@@ -102,7 +102,7 @@ export default function StudentsScreen() {
               <View style={{ flex: 1 }}>
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
                   <Text style={styles.rowName}>{item.student?.name || "Student"}</Text>
-                  {item.managed ? <Text style={styles.noApp}>App nahi</Text> : null}
+                  {item.managed ? <Text style={styles.noApp}>No app</Text> : null}
                 </View>
                 <Text style={styles.rowMeta}>{item.admission_number} • {item.student?.class || "—"}</Text>
                 <Text style={styles.rowMeta}>Monthly {inr(item.monthly_fee)} • Billed {inr(item.total_billed)}</Text>

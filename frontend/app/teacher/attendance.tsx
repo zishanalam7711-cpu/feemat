@@ -141,22 +141,22 @@ export default function AttendanceScreen() {
   const markAllUnmarkedPresentHint = counts.none;
 
   const save = async () => {
-    if (changed.length === 0) { Alert.alert("Kuch change nahi hua", "Pehle kisi student ki attendance lagao ya badlo."); return; }
+    if (changed.length === 0) { Alert.alert("Nothing changed", "Mark or change at least one student's attendance first."); return; }
     setSaving(true);
     try {
       await Promise.all(changed.map((id) => api(`/connections/${id}/attendance`, { method: "POST", body: { date, status: marks[id] } })));
       setSaved({ ...marks });
-      Alert.alert("Save ho gaya", `${changed.length} students ki attendance save ho gayi.`);
+      Alert.alert("Saved", `Attendance saved for ${changed.length} students.`);
     } catch (e: any) {
-      Alert.alert("Error", e?.message || "Save nahi hua, dobara try karo.");
+      Alert.alert("Error", e?.message || "Could not save. Please try again.");
     }
     setSaving(false);
   };
 
   const whatsappAbsent = (s: any) => {
     const num = waNumber(s.student?.phone);
-    if (!num) { Alert.alert("Phone number nahi hai", "Is student ka phone number profile mein nahi hai."); return; }
-    const msg = `Namaste, ${s.student?.name || "student"} aaj (${date}) class mein absent tha. Kripya dhyan dein.`;
+    if (!num) { Alert.alert("No phone number", "This student has no phone number saved."); return; }
+    const msg = `Hello, ${s.student?.name || "your child"} was absent from class on ${date}. Please take note.`;
     Linking.openURL(`https://wa.me/${num}?text=${encodeURIComponent(msg)}`).catch(() => {});
   };
 
@@ -204,17 +204,17 @@ export default function AttendanceScreen() {
             <Sum label="Absent" v={counts.absent} color="#EF4444" />
             <Sum label="Late" v={counts.late} color="#F59E0B" />
             <Sum label="Leave" v={counts.leave} color="#3B82F6" />
-            <Sum label="Baaki" v={counts.none} color="#9CA3AF" />
+            <Sum label="Unmarked" v={counts.none} color="#9CA3AF" />
           </View>
 
           <View style={styles.tools}>
             <View style={styles.searchWrap}>
               <Ionicons name="search" size={16} color={DARK.sub} />
-              <TextInput value={q} onChangeText={setQ} placeholder="Naam ya admission no." placeholderTextColor="rgba(255,255,255,0.35)" style={styles.searchInput} />
+              <TextInput value={q} onChangeText={setQ} placeholder="Name or admission no." placeholderTextColor="rgba(255,255,255,0.35)" style={styles.searchInput} />
             </View>
             <Pressable onPress={allPresent} style={styles.allBtn}>
               <Ionicons name="checkmark-done" size={16} color="#10B981" />
-              <Text style={styles.allTxt}>Baaki sab P</Text>
+              <Text style={styles.allTxt}>Rest Present</Text>
             </Pressable>
           </View>
 
@@ -230,7 +230,7 @@ export default function AttendanceScreen() {
           ) : filtered.length === 0 ? (
             <View style={styles.center}>
               <Ionicons name="people-outline" size={56} color="rgba(255,255,255,0.25)" />
-              <Text style={{ color: DARK.sub, marginTop: 8 }}>Koi student nahi mila.</Text>
+              <Text style={{ color: DARK.sub, marginTop: 8 }}>No students found.</Text>
             </View>
           ) : (
             <FlatList
@@ -287,7 +287,7 @@ export default function AttendanceScreen() {
           ) : !report || (report.items || []).length === 0 ? (
             <View style={styles.center}>
               <Ionicons name="stats-chart-outline" size={56} color="rgba(255,255,255,0.25)" />
-              <Text style={{ color: DARK.sub, marginTop: 8 }}>Is mahine ka koi data nahi.</Text>
+              <Text style={{ color: DARK.sub, marginTop: 8 }}>No data for this month.</Text>
             </View>
           ) : (
             <FlatList
@@ -297,12 +297,12 @@ export default function AttendanceScreen() {
                 <View style={{ gap: SPACING.sm, marginBottom: SPACING.sm }}>
                   <View style={styles.summary}>
                     <Sum label="Class Avg" v={`${avgPct}%`} color="#A855F7" />
-                    <Sum label="Din lage" v={report.days_marked} color="#3B82F6" />
-                    <Sum label="75% se kam" v={(report.items || []).filter((i: any) => i.total > 0 && i.pct < 75).length} color="#EF4444" />
+                    <Sum label="Days marked" v={report.days_marked} color="#3B82F6" />
+                    <Sum label="Below 75%" v={(report.items || []).filter((i: any) => i.total > 0 && i.pct < 75).length} color="#EF4444" />
                   </View>
                   <Pressable onPress={shareReport} style={styles.shareBtn}>
                     <Ionicons name="share-social" size={16} color="#A855F7" />
-                    <Text style={styles.shareTxt}>Report Share karo</Text>
+                    <Text style={styles.shareTxt}>Share Report</Text>
                   </Pressable>
                 </View>
               }
