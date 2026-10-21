@@ -209,7 +209,7 @@ async def current_user(creds: HTTPAuthorizationCredentials = Depends(bearer)) ->
         raise HTTPException(401, "Invalid account")
     changed = user.get("pw_changed_at")
     if changed and int(payload.get("iat", 0)) < int(changed):
-        raise HTTPException(401, "Password badal gaya hai, dobara login karo")
+        raise HTTPException(401, "Your password was changed. Please log in again.")
     return user
 
 
@@ -548,7 +548,7 @@ async def signup(data: SignupIn):
         raise HTTPException(409, "Email already registered")
     claim_code = _norm_code(data.claim_code) if data.role == "student" else ""
     if claim_code and not await db.connections.find_one({"claim_code": claim_code, "managed": True}):
-        raise HTTPException(400, "Ye code galat hai ya pehle hi use ho chuka hai. Teacher se dobara pucho, ya code khali chhod do.")
+        raise HTTPException(400, "This code is incorrect or has already been used. Ask your teacher again, or leave the code empty.")
     uid = str(uuid.uuid4())
     await db.users.insert_one(
         {"id": uid, "email": email, "password_hash": hash_pw(data.password),
@@ -589,13 +589,13 @@ async def signup(data: SignupIn):
 
 def check_password_strength(pw: str) -> None:
     if len(pw) < 8:
-        raise HTTPException(400, "Password kam se kam 8 akshar ka hona chahiye")
+        raise HTTPException(400, "Password must be at least 8 characters")
     if len(pw.encode()) > 72:
-        raise HTTPException(400, "Password bahut lamba hai (zyada se zyada 72 akshar)")
+        raise HTTPException(400, "Password is too long (maximum 72 characters)")
     if not any(ch.isalpha() for ch in pw) or not any(ch.isdigit() for ch in pw):
-        raise HTTPException(400, "Password mein kam se kam ek letter aur ek number hona chahiye")
+        raise HTTPException(400, "Password must include at least one letter and one number")
     if pw.lower() in COMMON_PASSWORDS:
-        raise HTTPException(400, "Ye password bahut aam hai, koi aur password chuno")
+        raise HTTPException(400, "This password is too common. Please choose a different one")
 
 
 _DUMMY_HASH = hash_pw("feemat-dummy-password-for-timing")
@@ -606,7 +606,7 @@ async def _check_login_lock(email: str) -> None:
     if rec and rec.get("locked_until") and rec["locked_until"] > now_utc().isoformat():
         left = datetime.fromisoformat(rec["locked_until"]) - now_utc()
         mins = max(1, int(left.total_seconds() // 60) + 1)
-        raise HTTPException(429, f"Bahut zyada galat koshish. {mins} minute baad dobara try karo, ya Forgot Password se OTP lo.")
+        raise HTTPException(429, f"Too many failed attempts. Try again in {mins} minute(s), or use Forgot Password to get an OTP.")
 
 
 async def _register_login_fail(email: str) -> None:
@@ -636,11 +636,11 @@ async def login(data: LoginIn):
         ok = False
     if not ok:
         await _register_login_fail(email)
-        raise HTTPException(401, "Email ya password galat hai")
+        raise HTTPException(401, "Incorrect email or password")
     if data.role and user["role"] != data.role:
         # right password, wrong portal: do NOT log in
         actual = "Teacher" if user["role"] == "teacher" else "Student"
-        raise HTTPException(403, f"Ye {actual} account hai. Kripya {actual} portal se login karo.")
+        raise HTTPException(403, f"This is a {actual} account. Please log in from the {actual} portal.")
     await db.login_attempts.delete_one({"email": email})
     token = make_token(user["id"], user["role"])
     return {"token": token, "user": {"id": user["id"], "email": user["email"], "role": user["role"], "name": user["name"]}}
@@ -679,9 +679,9 @@ def _otp_hash(email: str, otp: str) -> str:
 async def forgot(data: ForgotIn):
     """Step 1: email a 6 digit OTP. Always answers the same way, so nobody can find out which emails exist."""
     if not mail_configured():
-        raise HTTPException(503, "Email service abhi set nahi hai. App ke admin se sampark karo.")
+        raise HTTPException(503, "The email service is not configured yet. Please contact the app administrator.")
     email = data.email.lower()
-    generic = {"ok": True, "message": f"Agar ye email registered hai to 6 digit OTP bhej diya gaya hai. {OTP_TTL_MIN} minute ke andar use karo."}
+    generic = {"ok": True, "message": f"If this email is registered, a 6-digit OTP has been sent. Use it within {OTP_TTL_MIN} minutes."}
     user = await db.users.find_one({"email": email})
     if not user or user.get("managed"):
         return generic
@@ -705,9 +705,9 @@ async def forgot(data: ForgotIn):
     html = (
         f"<div style='font-family:Arial,sans-serif;max-width:420px'>"
         f"<h2 style='color:#5B21B6'>FeeMat password reset</h2>"
-        f"<p>Aapka OTP:</p>"
+        f"<p>Your OTP:</p>"
         f"<p style='font-size:32px;font-weight:bold;letter-spacing:6px'>{otp}</p>"
-        f"<p>Ye {OTP_TTL_MIN} minute tak chalega. Agar aapne ye request nahi ki, to is email ko ignore karo aur kisi ko OTP mat batao.</p>"
+        f"<p>This OTP is valid for {OTP_TTL_MIN} minutes. If you did not request it, ignore this email and never share the OTP with anyone.</p>"
         f"</div>"
     )
     await send_email(email, "FeeMat password reset OTP", html)
@@ -719,7 +719,7 @@ async def reset_password(data: ResetIn):
     """Step 2: OTP + new password."""
     email = data.email.lower()
     check_password_strength(data.new_password)
-    bad = HTTPException(400, "OTP galat hai ya expire ho gaya hai")
+    bad = HTTPException(400, "The OTP is incorrect or has expired")
     rec = await db.password_resets.find_one({"email": email})
     if not rec:
         raise bad
@@ -728,7 +728,7 @@ async def reset_password(data: ResetIn):
         raise bad
     if int(rec.get("attempts", 0)) >= OTP_MAX_ATTEMPTS:
         await db.password_resets.delete_one({"email": email})
-        raise HTTPException(429, "Bahut zyada galat OTP. Naya OTP maango.")
+        raise HTTPException(429, "Too many incorrect OTP attempts. Please request a new OTP.")
     if not hmac.compare_digest(rec["otp_hash"], _otp_hash(email, data.otp.strip())):
         await db.password_resets.update_one({"email": email}, {"$inc": {"attempts": 1}})
         raise bad
@@ -749,9 +749,9 @@ async def change_password(data: ChangePasswordIn, user: dict = Depends(current_u
     """Logged-in user changes password. Old sessions on other phones stop working; this phone gets a new token."""
     check_password_strength(data.new_password)
     if not verify_pw(data.current_password, user["password_hash"]):
-        raise HTTPException(400, "Abhi ka password galat hai")
+        raise HTTPException(400, "Current password is incorrect")
     if data.current_password == data.new_password:
-        raise HTTPException(400, "Naya password purane jaisa nahi ho sakta")
+        raise HTTPException(400, "The new password must be different from the current one")
     now_ts = int(time.time())
     await db.users.update_one({"id": user["id"]}, {"$set": {"password_hash": hash_pw(data.new_password), "pw_changed_at": now_ts}})
     return {"ok": True, "token": make_token(user["id"], user["role"])}
@@ -883,7 +883,7 @@ async def _new_claim_code() -> str:
         code = "".join(secrets.choice(CODE_ALPHABET) for _ in range(8))
         if not await db.connections.find_one({"claim_code": code}):
             return code
-    raise HTTPException(500, "Code nahi ban paaya, dobara try karo")
+    raise HTTPException(500, "Could not generate a code. Please try again")
 
 
 @api.post("/teacher/students/manual")
@@ -896,15 +896,15 @@ async def add_student_manually(data: ManualStudentIn, user: dict = Depends(requi
         if active >= FREE_STUDENT_LIMIT:
             raise HTTPException(402, f"Free plan limit reached ({FREE_STUDENT_LIMIT} active students). Upgrade to Pro for unlimited.")
     if data.class_id and not await db.classes.find_one({"id": data.class_id, "teacher_user_id": user["id"]}):
-        raise HTTPException(400, "Class nahi mili")
+        raise HTTPException(400, "Class not found")
     if data.batch_id and not await db.batches.find_one({"id": data.batch_id, "teacher_user_id": user["id"]}):
-        raise HTTPException(400, "Batch nahi mila")
+        raise HTTPException(400, "Batch not found")
     joined = now_utc().isoformat()
     if data.joined_on:
         try:
             joined = datetime.fromisoformat(data.joined_on[:10]).replace(tzinfo=timezone.utc).isoformat()
         except Exception:
-            raise HTTPException(400, "Joining date galat hai (YYYY-MM-DD)")
+            raise HTTPException(400, "Invalid joining date (use YYYY-MM-DD)")
     import secrets
     uid = str(uuid.uuid4())
     name = data.name.strip()
@@ -943,7 +943,7 @@ async def add_student_manually(data: ManualStudentIn, user: dict = Depends(requi
 async def regenerate_claim_code(connection_id: str, user: dict = Depends(require_role("teacher"))):
     conn = await _load_conn_for_teacher(user["id"], connection_id)
     if not conn.get("managed"):
-        raise HTTPException(400, "Ye student pehle se app se juda hua hai")
+        raise HTTPException(400, "This student is already linked to an app account")
     code = await _new_claim_code()
     await db.connections.update_one({"id": connection_id}, {"$set": {"claim_code": code}})
     return {"claim_code": code}
@@ -954,11 +954,11 @@ async def _claim_student(real_uid: str, code: str) -> dict:
     code = _norm_code(code)
     conn = await db.connections.find_one({"claim_code": code, "managed": True})
     if not conn:
-        raise HTTPException(404, "Ye code galat hai ya pehle hi use ho chuka hai")
+        raise HTTPException(404, "This code is incorrect or has already been used")
     old_uid = conn["student_user_id"]
     teacher_uid = conn["teacher_user_id"]
     if await db.connections.find_one({"teacher_user_id": teacher_uid, "student_user_id": real_uid}):
-        raise HTTPException(409, "Aap is teacher se pehle se jude hue ho")
+        raise HTTPException(409, "You are already connected to this teacher")
     # atomic claim: only one person can win
     won = await db.connections.find_one_and_update(
         {"id": conn["id"], "managed": True, "claim_code": code},
@@ -966,7 +966,7 @@ async def _claim_student(real_uid: str, code: str) -> dict:
          "$unset": {"claim_code": ""}},
     )
     if not won:
-        raise HTTPException(404, "Ye code galat hai ya pehle hi use ho chuka hai")
+        raise HTTPException(404, "This code is incorrect or has already been used")
     # move every record that points at the placeholder student
     for col in ["fee_months", "installments", "marks", "attendance", "receipts", "join_requests"]:
         try:
@@ -996,8 +996,8 @@ async def _claim_student(real_uid: str, code: str) -> dict:
     await db.users.delete_one({"id": old_uid, "managed": True})
     name = (real_p.get("name") or old_p.get("name") or "Student")
     try:
-        await notify(real_uid, "Account jud gaya", f"Aapka record (Admission {conn['admission_number']}) aapke account se jud gaya hai.", "success")
-        await notify(teacher_uid, "Student app se jud gaya", f"{name} ({conn['admission_number']}) ne code se apna account jod liya.", "success")
+        await notify(real_uid, "Account linked", f"Your record (Admission {conn['admission_number']}) is now linked to your account.", "success")
+        await notify(teacher_uid, "Student joined the app", f"{name} ({conn['admission_number']}) linked their account using the code.", "success")
     except Exception:
         pass
     return clean(await db.connections.find_one({"id": conn["id"]}))
@@ -1427,7 +1427,7 @@ async def mark_attendance(connection_id: str, data: AttendanceIn, user: dict = D
 
 @api.get("/teacher/attendance")
 async def attendance_by_date(date: str, user: dict = Depends(require_role("teacher"))):
-    """Ek din ki saved attendance: {connection_id: status}."""
+    """Saved attendance for one day: {connection_id: status}."""
     ids = [c["id"] async for c in db.connections.find({"teacher_user_id": user["id"]}, {"id": 1})]
     out: dict[str, str] = {}
     async for a in db.attendance.find({"connection_id": {"$in": ids}, "date": date}):
@@ -1437,7 +1437,7 @@ async def attendance_by_date(date: str, user: dict = Depends(require_role("teach
 
 @api.get("/teacher/attendance/report")
 async def attendance_report(month: str, user: dict = Depends(require_role("teacher"))):
-    """Mahine ki attendance report (month = YYYY-MM): har student ke present/absent/late/leave aur %."""
+    """Monthly attendance report (month = YYYY-MM): present/absent/late/leave counts and % per student."""
     import re
     if not re.fullmatch(r"\d{4}-\d{2}", month):
         raise HTTPException(400, "month must be YYYY-MM")
@@ -1737,10 +1737,10 @@ async def teacher_reports_advanced(user: dict = Depends(require_pro())):
             reasons.append(f"Attendance {ar['pct']}%")
         pmn = pending_months.get(c["id"], 0)
         if pmn >= 2:
-            reasons.append(f"{pmn} mahine ki fees baaki")
+            reasons.append(f"{pmn} month(s) of fees pending")
         es = exam_stats.get(c["student_user_id"])
         if es and es[0] >= 2:
-            reasons.append(f"{es[0]} exam mein fail")
+            reasons.append(f"Failed {es[0]} exams")
         elif es and es[1] < 40:
             reasons.append(f"Exam average {es[1]}%")
         if reasons:
