@@ -39,7 +39,7 @@ export function PhotoPicker({ label, value, onChange, name, shape = "circle", si
       );
       if (out.base64) onChange(`data:image/jpeg;base64,${out.base64}`);
     } catch (e) {
-      Alert.alert("Photo nahi mili", "Dobara try karo.");
+      Alert.alert("Could not load the photo", "Please try again.");
     } finally {
       setBusy(false);
     }
@@ -66,14 +66,14 @@ export function PhotoPicker({ label, value, onChange, name, shape = "circle", si
         <View style={{ flex: 1, gap: SPACING.sm }}>
           <Pressable onPress={pick} disabled={busy} style={styles.btn}>
             <Ionicons name="image" size={16} color={COLORS.brand} />
-            <Text style={styles.btnTxt}>{value ? "Photo badlo" : "Gallery se chuno"}</Text>
+            <Text style={styles.btnTxt}>{value ? "Change photo" : "Choose from gallery"}</Text>
           </Pressable>
           {value ? (
             <Pressable onPress={() => onChange("")} style={styles.btnGhost}>
-              <Text style={styles.removeTxt}>Hatao</Text>
+              <Text style={styles.removeTxt}>Remove</Text>
             </Pressable>
           ) : null}
-          <Text style={styles.hint}>{hint || "Photo chuno, phir neeche Save dabao."}</Text>
+          <Text style={styles.hint}>{hint || "Choose a photo, then tap Save below."}</Text>
         </View>
       </View>
     </View>

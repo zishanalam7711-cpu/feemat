@@ -75,7 +75,7 @@ export function AudiencePicker({
 
   return (
     <View style={{ gap: 10 }}>
-      <Text style={styles.label}>Kisko bhejna hai</Text>
+      <Text style={styles.label}>Send to</Text>
       <View style={styles.seg}>
         {SEGMENTS.map((s) => {
           const on = value.target === s.k;
@@ -89,7 +89,7 @@ export function AudiencePicker({
 
       {value.target === "class" && (
         classes.length === 0 ? (
-          <Text style={styles.hint}>Pehle Classes mein class banao.</Text>
+          <Text style={styles.hint}>Create a class first in Classes.</Text>
         ) : (
           <View style={styles.wrap}>
             {classes.map((c) => (
@@ -101,7 +101,7 @@ export function AudiencePicker({
 
       {value.target === "batch" && (
         batches.length === 0 ? (
-          <Text style={styles.hint}>Pehle Batches mein batch banao.</Text>
+          <Text style={styles.hint}>Create a batch first in Batches.</Text>
         ) : (
           <View style={styles.wrap}>
             {batches.map((b) => (
@@ -114,12 +114,12 @@ export function AudiencePicker({
       {value.target === "students" && (
         <View style={{ gap: 8 }}>
           <TextInput
-            value={q} onChangeText={setQ} placeholder="Student ka naam dhoondo"
+            value={q} onChangeText={setQ} placeholder="Search student name"
             placeholderTextColor="rgba(255,255,255,0.35)" style={styles.search}
           />
           <View style={{ flexDirection: "row", gap: 12 }}>
-            <Pressable onPress={selectShown}><Text style={styles.link}>Dikhe sab chuno</Text></Pressable>
-            <Pressable onPress={() => set({ student_ids: [] })}><Text style={[styles.link, { color: "#F87171" }]}>Sab hatao</Text></Pressable>
+            <Pressable onPress={selectShown}><Text style={styles.link}>Select all shown</Text></Pressable>
+            <Pressable onPress={() => set({ student_ids: [] })}><Text style={[styles.link, { color: "#F87171" }]}>Clear all</Text></Pressable>
           </View>
           <View style={styles.wrap}>
             {shown.map((s) => (
@@ -130,7 +130,7 @@ export function AudiencePicker({
       )}
 
       <Text style={styles.count}>
-        {audienceCount(value, students)} students tak pahunchega
+        Will reach {audienceCount(value, students)} students
       </Text>
     </View>
   );

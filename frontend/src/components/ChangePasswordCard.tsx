@@ -21,9 +21,9 @@ export function ChangePasswordCard() {
   const submit = async () => {
     setErr(null);
     setOk(false);
-    if (!cur) return setErr("Abhi ka password likho");
-    if (!strongEnough(nw)) return setErr("Naya password kam se kam 8 akshar ka ho, usme letter aur number dono hon");
-    if (nw !== nw2) return setErr("Dono naye password same nahi hain");
+    if (!cur) return setErr("Enter your current password");
+    if (!strongEnough(nw)) return setErr("The new password must be at least 8 characters and include a letter and a number");
+    if (nw !== nw2) return setErr("The two new passwords do not match");
     setLoading(true);
     try {
       const res = await api<{ token: string }>("/auth/change-password", {
@@ -35,7 +35,7 @@ export function ChangePasswordCard() {
       setCur(""); setNw(""); setNw2("");
       setOpen(false);
     } catch (e: any) {
-      setErr(e?.message || "Password nahi badla");
+      setErr(e?.message || "Could not change the password");
     } finally {
       setLoading(false);
     }
@@ -45,17 +45,17 @@ export function ChangePasswordCard() {
     <View style={styles.card}>
       <Pressable onPress={() => { setOpen(!open); setErr(null); }} style={styles.row} testID="change-pw-toggle">
         <Ionicons name="lock-closed" size={18} color={COLORS.brand} />
-        <Text style={styles.title}>Password badlo</Text>
+        <Text style={styles.title}>Change password</Text>
         <Ionicons name={open ? "chevron-up" : "chevron-down"} size={18} color={COLORS.muted} />
       </Pressable>
-      {ok ? <Text style={styles.ok}>Password badal gaya ✅ Dusre phones se apne aap logout ho jayega.</Text> : null}
+      {ok ? <Text style={styles.ok}>Password changed ✅ Other devices will be signed out automatically.</Text> : null}
       {open && (
         <View style={{ gap: SPACING.md, marginTop: SPACING.md }}>
-          <Input testID="cp-current" label="Abhi ka password" value={cur} onChangeText={setCur} secureTextEntry />
-          <Input testID="cp-new" label="Naya password" value={nw} onChangeText={setNw} secureTextEntry placeholder="Kam se kam 8 akshar, letter + number" />
-          <Input testID="cp-new2" label="Naya password dobara" value={nw2} onChangeText={setNw2} secureTextEntry />
+          <Input testID="cp-current" label="Current password" value={cur} onChangeText={setCur} secureTextEntry />
+          <Input testID="cp-new" label="New password" value={nw} onChangeText={setNw} secureTextEntry placeholder="At least 8 characters, letter + number" />
+          <Input testID="cp-new2" label="Confirm new password" value={nw2} onChangeText={setNw2} secureTextEntry />
           {err ? <Text style={styles.err}>{err}</Text> : null}
-          <Button testID="cp-submit" title="Password badlo" onPress={submit} loading={loading} />
+          <Button testID="cp-submit" title="Change password" onPress={submit} loading={loading} />
         </View>
       )}
     </View>
