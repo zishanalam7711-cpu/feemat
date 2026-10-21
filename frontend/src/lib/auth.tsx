@@ -1,5 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
-import { api, getToken, saveToken } from "./api";
+import { api, getCachedUser, getToken, saveToken, saveUser } from "./api";
 
 export type User = { id: string; email: string; role: "teacher" | "student"; name: string };
 
@@ -27,16 +27,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const me = await api<User>("/auth/me");
       setUser(me);
-    } catch {
-      await saveToken(null);
-      setUser(null);
+      await saveUser(me);
+    } catch (e: any) {
+      // Sign out ONLY when the server says the login is invalid. If the server is asleep or
+      // there is no internet, keep the session so the user stays logged in.
+      if (e?.status === 401 || e?.status === 403) {
+        await saveToken(null);
+        await saveUser(null);
+        setUser(null);
+      }
     }
   }, []);
 
   useEffect(() => {
     (async () => {
-      await refresh();
-      setLoading(false);
+      const token = await getToken();
+      const cached = token ? await getCachedUser<User>() : null;
+      if (cached) {
+        // open instantly from the saved login, verify with the server in the background
+        setUser(cached);
+        setLoading(false);
+        refresh();
+      } else {
+        await refresh();
+        setLoading(false);
+      }
     })();
   }, [refresh]);
 
@@ -46,7 +61,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       body: { email, password, role },
       auth: false,
     });
+    // Wrong portal (for example a teacher account in the Student portal): do NOT log in.
+    if (role && res.user.role !== role) {
+      const actual = res.user.role === "teacher" ? "Teacher" : "Student";
+      throw new Error(`This is a ${actual} account. Please log in from the ${actual} portal.`);
+    }
     await saveToken(res.token);
+    await saveUser(res.user);
     setUser(res.user);
     return res.user;
   }, []);
@@ -59,6 +80,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         auth: false,
       });
       await saveToken(res.token);
+      await saveUser(res.user);
       setUser(res.user);
       return { ...res.user, claimed: res.claimed, claim_error: res.claim_error };
     },
@@ -67,6 +89,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signOut = useCallback(async () => {
     await saveToken(null);
+    await saveUser(null);
     setUser(null);
   }, []);
 
