@@ -25,7 +25,7 @@ export default function StudentReceipt() {
   return (
     <View style={{ flex: 1, backgroundColor: COLORS.surfaceSecondary }}>
       <View style={[styles.header, { paddingTop: insets.top + SPACING.md }]}>
-        <Pressable onPress={() => router.back()} hitSlop={12}><Ionicons name="chevron-back" size={26} color={COLORS.onSurface} /></Pressable>
+        <Pressable onPress={() => router.back()} hitSlop={12}><Ionicons name="chevron-back" size={26} color="#FFFFFF" /></Pressable>
         <Text style={styles.hTitle}>Receipt</Text>
         <Pressable onPress={share} hitSlop={12}><Ionicons name="share-outline" size={22} color={COLORS.brand} /></Pressable>
       </View>
@@ -54,8 +54,8 @@ export default function StudentReceipt() {
 function Row({ k, v, big }: any) { return (<View style={styles.kv}><Text style={styles.k}>{k}</Text><Text style={[styles.v, big && { fontSize: 15, fontWeight: "800" }]}>{v}</Text></View>); }
 const styles = StyleSheet.create({
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
-  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: SPACING.lg, paddingBottom: SPACING.md, backgroundColor: COLORS.surface, borderBottomWidth: 1, borderBottomColor: COLORS.divider },
-  hTitle: { fontSize: 16, fontWeight: "700", color: COLORS.onSurface },
+  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: SPACING.lg, paddingBottom: SPACING.md, backgroundColor: "#071E4A" },
+  hTitle: { fontSize: 16, fontWeight: "700", color: "#FFFFFF" },
   receipt: { backgroundColor: COLORS.surface, borderRadius: RADIUS.lg, padding: SPACING.xl, borderWidth: 1, borderColor: COLORS.divider, gap: 4 },
   brandBar: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   brand: { fontSize: 26, fontWeight: "900", color: COLORS.brand, letterSpacing: 1 },
