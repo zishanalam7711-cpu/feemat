@@ -47,7 +47,7 @@ export default function TeacherView() {
 
   return (
     <View style={{ flex: 1, backgroundColor: COLORS.surfaceSecondary }}>
-      <LinearGradient colors={["#7C3AED", "#EC4899"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.hero, { paddingTop: insets.top + SPACING.md }]}>
+      <LinearGradient colors={["#1B5BFF", "#16B5F0"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.hero, { paddingTop: insets.top + SPACING.md }]}>
         <Pressable onPress={() => router.back()} hitSlop={12}><Ionicons name="chevron-back" size={26} color="#fff" /></Pressable>
         <View style={styles.heroBody}>
           <Avatar name={t.name} uri={t.photo_url} size={80} bg="rgba(255,255,255,0.22)" fg="#fff" />
