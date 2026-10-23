@@ -35,7 +35,7 @@ export default function IdCard() {
     return (
       <View style={{ flex: 1, backgroundColor: COLORS.surfaceSecondary }}>
         <View style={[styles.header, { paddingTop: insets.top + SPACING.md }]}>
-          <Pressable onPress={() => router.back()} hitSlop={12}><Ionicons name="chevron-back" size={26} color={COLORS.onSurface} /></Pressable>
+          <Pressable onPress={() => router.back()} hitSlop={12}><Ionicons name="chevron-back" size={26} color="#FFFFFF" /></Pressable>
           <Text style={styles.hTitle}>ID Card</Text><View style={{ width: 26 }} />
         </View>
         <ProUpgradeModal visible={upgrade} onClose={() => { setUpgrade(false); router.back(); }} feature="Student ID Card Studio" />
@@ -50,13 +50,13 @@ export default function IdCard() {
   return (
     <View style={{ flex: 1, backgroundColor: COLORS.surfaceSecondary }}>
       <View style={[styles.header, { paddingTop: insets.top + SPACING.md }]}>
-        <Pressable onPress={() => router.back()} hitSlop={12}><Ionicons name="chevron-back" size={26} color={COLORS.onSurface} /></Pressable>
+        <Pressable onPress={() => router.back()} hitSlop={12}><Ionicons name="chevron-back" size={26} color="#FFFFFF" /></Pressable>
         <Text style={styles.hTitle}>Student ID Card</Text>
         <View style={{ width: 26 }} />
       </View>
       <ScrollView contentContainerStyle={{ padding: SPACING.lg, paddingBottom: SPACING.xxl, alignItems: "center" }}>
         <View style={styles.card}>
-          <LinearGradient colors={["#7C3AED", "#EC4899"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.cardHead}>
+          <LinearGradient colors={["#1F6BFF", "#16B5F0"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.cardHead}>
             {card.institute_logo_url ? <Image source={{ uri: card.institute_logo_url }} style={styles.logo} /> : <View style={styles.logo}><Ionicons name="school" size={20} color="#fff" /></View>}
             <Text style={styles.brand}>{(card.institute || "FEEMAT").toUpperCase()}</Text>
             {card.institute_address ? <Text style={styles.subInst}>{card.institute_address}</Text> : null}
@@ -91,8 +91,8 @@ export default function IdCard() {
 
 const styles = StyleSheet.create({
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
-  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: SPACING.lg, paddingBottom: SPACING.md, backgroundColor: COLORS.surface, borderBottomWidth: 1, borderBottomColor: COLORS.divider },
-  hTitle: { fontSize: 16, fontWeight: "700", color: COLORS.onSurface },
+  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: SPACING.lg, paddingBottom: SPACING.md, backgroundColor: "#071E4A" },
+  hTitle: { fontSize: 16, fontWeight: "700", color: "#FFFFFF" },
   card: { width: 320, borderRadius: 24, overflow: "hidden", backgroundColor: COLORS.surface, shadowColor: COLORS.brand, shadowOpacity: 0.15, shadowRadius: 20, shadowOffset: { width: 0, height: 10 }, elevation: 8 },
   cardHead: { padding: SPACING.lg, alignItems: "center", gap: 6 },
   logo: { width: 44, height: 44, borderRadius: 12, backgroundColor: "rgba(255,255,255,0.22)", alignItems: "center", justifyContent: "center" },
