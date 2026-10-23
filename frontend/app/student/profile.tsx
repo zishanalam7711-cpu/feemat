@@ -65,8 +65,8 @@ export default function StudentProfile() {
 
 const styles = StyleSheet.create({
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
-  header: { alignItems: "center", padding: SPACING.xl, gap: SPACING.sm, backgroundColor: COLORS.surface },
-  name: { fontSize: 22, fontWeight: "800", color: COLORS.onSurface },
-  tid: { fontSize: 13, color: COLORS.brand, fontWeight: "700" },
+  header: { alignItems: "center", padding: SPACING.xl, gap: SPACING.sm, backgroundColor: "#071E4A" },
+  name: { fontSize: 22, fontWeight: "800", color: "#FFFFFF" },
+  tid: { fontSize: 13, color: "#7FD3FF", fontWeight: "700" },
   section: { padding: SPACING.lg, gap: SPACING.md, marginTop: SPACING.md, backgroundColor: COLORS.surface, marginHorizontal: SPACING.md, borderRadius: RADIUS.md },
 });

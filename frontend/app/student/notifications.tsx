@@ -56,8 +56,8 @@ export default function Notifications() {
 }
 
 const styles = StyleSheet.create({
-  header: { paddingHorizontal: SPACING.xl, paddingBottom: SPACING.md, backgroundColor: COLORS.surface, borderBottomWidth: 1, borderBottomColor: COLORS.divider },
-  title: { fontSize: 24, fontWeight: "800", color: COLORS.onSurface },
+  header: { paddingHorizontal: SPACING.xl, paddingBottom: SPACING.md, backgroundColor: "#071E4A" },
+  title: { fontSize: 24, fontWeight: "800", color: "#FFFFFF" },
   center: { flex: 1, alignItems: "center", justifyContent: "center", padding: SPACING.xl, gap: SPACING.sm },
   empty: { fontSize: 16, fontWeight: "700", color: COLORS.onSurface },
   row: { flexDirection: "row", gap: SPACING.md, padding: SPACING.md, backgroundColor: COLORS.surface, borderRadius: RADIUS.md, borderWidth: 1, borderColor: COLORS.divider, alignItems: "center" },

@@ -1,5 +1,6 @@
 import React, { useCallback, useState } from "react";
-import { View, Text, StyleSheet, ScrollView, ActivityIndicator, Pressable, Linking } from "react-native";
+import { View, Text, StyleSheet, ScrollView, ActivityIndicator, Pressable, Linking, TextInput, Alert } from "react-native";
+import { InlineOverlay } from "@/src/components/InlineOverlay";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
@@ -14,8 +15,19 @@ export default function StudentFee() {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<"months" | "history" | "attendance">("months");
+  const [claims, setClaims] = useState<any[]>([]);
+  const [showPaid, setShowPaid] = useState(false);
+  const [amt, setAmt] = useState("");
+  const [ref, setRef] = useState("");
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(false);
 
-  const load = useCallback(async () => { setLoading(true); try { setData(await api(`/connections/${id}`)); } catch {} setLoading(false); }, [id]);
+  const load = useCallback(async () => {
+    setLoading(true);
+    try { setData(await api(`/connections/${id}`)); } catch {}
+    try { setClaims(await api(`/student/payment-claims?connection_id=${id}`)); } catch {}
+    setLoading(false);
+  }, [id]);
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
   if (loading || !data) return <View style={styles.center}><ActivityIndicator color={COLORS.brand} /></View>;
@@ -23,6 +35,20 @@ export default function StudentFee() {
   const c = data.connection;
   const t = data.teacher;
   const pct = c.total_billed > 0 ? Math.min(100, Math.round((c.paid_all / c.total_billed) * 100)) : 0;
+
+  const submitPaid = async () => {
+    const a = parseFloat(amt);
+    if (!(a > 0)) { Alert.alert("Enter the amount", "Enter the amount you paid."); return; }
+    setBusy(true);
+    try {
+      await api("/student/payment-claims", { method: "POST", body: { connection_id: c.id, amount: a, reference: ref.trim(), note: note.trim() } });
+      setShowPaid(false); setRef(""); setNote("");
+      await load();
+      Alert.alert("Sent to your teacher", "Your teacher will check the payment and confirm it. You will get a notification and a receipt.");
+    } catch (e: any) {
+      Alert.alert("Could not send", e?.message || "Please try again.");
+    } finally { setBusy(false); }
+  };
 
   const payViaUpi = () => {
     if (!t.upi_id) return;
@@ -33,7 +59,7 @@ export default function StudentFee() {
   return (
     <View style={{ flex: 1, backgroundColor: COLORS.surfaceSecondary }}>
       <View style={[styles.header, { paddingTop: insets.top + SPACING.md }]}>
-        <Pressable onPress={() => router.back()} hitSlop={12}><Ionicons name="chevron-back" size={26} color={COLORS.onSurface} /></Pressable>
+        <Pressable onPress={() => router.back()} hitSlop={12}><Ionicons name="chevron-back" size={26} color="#FFFFFF" /></Pressable>
         <Text style={styles.hTitle}>Fees & Attendance</Text>
         <View style={{ width: 26 }} />
       </View>
@@ -61,6 +87,35 @@ export default function StudentFee() {
                 <Text style={{ color: "#fff", fontWeight: "700" }}>Pay {inr(c.due_all)} via UPI</Text>
               </Pressable>
             ) : null}
+            <Pressable testID="i-have-paid-btn" style={[styles.cta, { backgroundColor: COLORS.surfaceSecondary, borderWidth: 1, borderColor: COLORS.brand }]} onPress={() => { setAmt(String(Math.round(c.due_all))); setShowPaid(true); }}>
+              <Ionicons name="checkmark-circle" size={18} color={COLORS.brand} />
+              <Text style={{ color: COLORS.brand, fontWeight: "700" }}>I have paid</Text>
+            </Pressable>
+            <Text style={{ color: COLORS.muted, fontSize: 11, marginTop: 8, textAlign: "center" }}>After paying, tap "I have paid" so your teacher can confirm and send your receipt.</Text>
+          </View>
+        )}
+
+        {claims.length > 0 && (
+          <View style={styles.card}>
+            <Text style={styles.sect}>Your payment requests</Text>
+            {claims.slice(0, 5).map((cl: any) => {
+              const col = cl.status === "confirmed" ? COLORS.success : cl.status === "rejected" ? COLORS.error : COLORS.warning;
+              const label = cl.status === "confirmed" ? "Confirmed" : cl.status === "rejected" ? "Not confirmed" : "Waiting for teacher";
+              return (
+                <View key={cl.id} style={styles.monthRow}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.instAmt}>{inr(cl.amount)}{cl.reference ? ` • ${cl.reference}` : ""}</Text>
+                    <Text style={styles.meta}>{new Date(cl.created_at).toLocaleDateString()}{cl.status === "rejected" && cl.reason ? ` • ${cl.reason}` : ""}</Text>
+                  </View>
+                  <Text style={{ color: col, fontWeight: "800", fontSize: 12 }}>{label}</Text>
+                  {cl.receipt_number ? (
+                    <Pressable onPress={() => router.push(`/student/receipt/${cl.receipt_number}`)} hitSlop={8}>
+                      <Ionicons name="receipt" size={18} color={COLORS.brand} />
+                    </Pressable>
+                  ) : null}
+                </View>
+              );
+            })}
           </View>
         )}
 
@@ -129,6 +184,28 @@ export default function StudentFee() {
           </View>
         )}
       </ScrollView>
+
+      <InlineOverlay visible={showPaid} onClose={() => setShowPaid(false)}>
+        <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" }}>
+          <Pressable style={{ flex: 1 }} onPress={() => setShowPaid(false)} />
+          <View style={{ backgroundColor: COLORS.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: SPACING.lg, paddingBottom: insets.bottom + SPACING.lg, gap: SPACING.sm }}>
+            <Text style={{ fontSize: 20, fontWeight: "800", color: COLORS.onSurface }}>I have paid</Text>
+            <Text style={{ color: COLORS.muted, fontSize: 12, lineHeight: 17 }}>Only send this after the payment is done in your UPI app. Your teacher will check it before confirming.</Text>
+            <Text style={styles.k}>Amount paid</Text>
+            <TextInput value={amt} onChangeText={setAmt} keyboardType="decimal-pad" placeholder="₹" placeholderTextColor={COLORS.muted}
+              style={{ height: 48, borderRadius: RADIUS.md, borderWidth: 1, borderColor: COLORS.border, paddingHorizontal: 14, fontSize: 16, color: COLORS.onSurface }} />
+            <Text style={styles.k}>UPI reference / UTR number (recommended)</Text>
+            <TextInput value={ref} onChangeText={setRef} autoCapitalize="characters" placeholder="e.g. 412345678901" placeholderTextColor={COLORS.muted}
+              style={{ height: 48, borderRadius: RADIUS.md, borderWidth: 1, borderColor: COLORS.border, paddingHorizontal: 14, fontSize: 16, color: COLORS.onSurface }} />
+            <Text style={styles.k}>Note (optional)</Text>
+            <TextInput value={note} onChangeText={setNote} placeholder="e.g. October fees" placeholderTextColor={COLORS.muted}
+              style={{ height: 48, borderRadius: RADIUS.md, borderWidth: 1, borderColor: COLORS.border, paddingHorizontal: 14, fontSize: 16, color: COLORS.onSurface }} />
+            <Pressable testID="submit-paid" onPress={submitPaid} disabled={busy} style={[styles.cta, { opacity: busy ? 0.6 : 1 }]}>
+              {busy ? <ActivityIndicator color="#fff" /> : <Text style={{ color: "#fff", fontWeight: "700" }}>Send to teacher</Text>}
+            </Pressable>
+          </View>
+        </View>
+      </InlineOverlay>
     </View>
   );
 }
@@ -155,8 +232,8 @@ function StatusChip({ status }: { status: string }) {
 
 const styles = StyleSheet.create({
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
-  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: SPACING.lg, paddingBottom: SPACING.md, backgroundColor: COLORS.surface, borderBottomWidth: 1, borderBottomColor: COLORS.divider },
-  hTitle: { fontSize: 16, fontWeight: "700", color: COLORS.onSurface },
+  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: SPACING.lg, paddingBottom: SPACING.md, backgroundColor: "#071E4A" },
+  hTitle: { fontSize: 16, fontWeight: "700", color: "#FFFFFF" },
   card: { padding: SPACING.lg, backgroundColor: COLORS.surface, borderRadius: RADIUS.md, borderWidth: 1, borderColor: COLORS.divider },
   sect: { fontSize: 14, fontWeight: "800", color: COLORS.onSurfaceSecondary, textTransform: "uppercase", letterSpacing: 0.5 },
   progress: { height: 8, backgroundColor: COLORS.divider, borderRadius: 999, overflow: "hidden", marginTop: SPACING.md },

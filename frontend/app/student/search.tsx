@@ -83,8 +83,8 @@ export default function StudentSearch() {
 }
 
 const styles = StyleSheet.create({
-  header: { paddingHorizontal: SPACING.xl, paddingBottom: SPACING.md, backgroundColor: COLORS.surface, borderBottomWidth: 1, borderBottomColor: COLORS.divider, gap: SPACING.md },
-  title: { fontSize: 24, fontWeight: "800", color: COLORS.onSurface },
+  header: { paddingHorizontal: SPACING.xl, paddingBottom: SPACING.md, backgroundColor: "#071E4A", gap: SPACING.md },
+  title: { fontSize: 24, fontWeight: "800", color: "#FFFFFF" },
   sub: { color: COLORS.muted },
   searchWrap: { flexDirection: "row", alignItems: "center", gap: SPACING.sm, backgroundColor: COLORS.surfaceSecondary, borderRadius: RADIUS.md, paddingLeft: SPACING.md, height: 48 },
   searchInput: { flex: 1, color: COLORS.onSurface, fontSize: 15, letterSpacing: 0.5 },
