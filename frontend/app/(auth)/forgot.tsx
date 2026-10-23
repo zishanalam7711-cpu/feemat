@@ -3,10 +3,8 @@ import { View, Text, StyleSheet, Pressable, ScrollView, KeyboardAvoidingView, Pl
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { COLORS, SPACING } from "@/src/lib/theme";
-import { Input } from "@/src/components/Input";
-import { Button } from "@/src/components/Button";
 import { api } from "@/src/lib/api";
+import { GradientBg, Logo, GradBtn, AuthField } from "@/src/components/ui";
 
 const strongEnough = (pw: string) => pw.length >= 8 && /[A-Za-z]/.test(pw) && /\d/.test(pw);
 
@@ -81,67 +79,65 @@ export default function ForgotScreen() {
   };
 
   return (
-    <View style={{ flex: 1, backgroundColor: COLORS.surface }}>
-      <View style={[styles.header, { paddingTop: insets.top + SPACING.md }]}>
-        <Pressable onPress={() => router.back()} hitSlop={12}>
-          <Ionicons name="chevron-back" size={26} color={COLORS.onSurface} />
-        </Pressable>
-        <Text style={styles.hTitle}>Reset Password</Text>
-        <View style={{ width: 26 }} />
-      </View>
+    <GradientBg>
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
-        <ScrollView contentContainerStyle={{ padding: SPACING.xl }} keyboardShouldPersistTaps="handled">
-          {step === "done" ? (
-            <>
-              <Text style={styles.title}>Password changed ✅</Text>
-              <Text style={styles.sub}>You can now log in with your new password. All older sessions have been signed out.</Text>
-              <Button testID="back-to-login" title="Go to Login" onPress={() => router.replace("/")} style={{ marginTop: SPACING.xl }} />
-            </>
-          ) : step === "email" ? (
-            <>
-              <Text style={styles.title}>Forgot your password?</Text>
-              <Text style={styles.sub}>Enter your email. We will send you a 6-digit OTP.</Text>
-              <View style={{ gap: SPACING.lg, marginTop: SPACING.xl }}>
-                <Input testID="forgot-email" label="Email" value={email} onChangeText={setEmail}
-                  autoCapitalize="none" keyboardType="email-address" placeholder="you@school.com" />
-                {err ? <Text style={styles.err}>{err}</Text> : null}
-                <Button testID="forgot-send" title="Send OTP" onPress={sendOtp} loading={loading} />
-              </View>
-            </>
-          ) : (
-            <>
-              <Text style={styles.title}>Enter OTP</Text>
-              <Text style={styles.sub}>{info}</Text>
-              <View style={{ gap: SPACING.lg, marginTop: SPACING.xl }}>
-                <Input testID="forgot-otp" label="6 digit OTP" value={otp} onChangeText={setOtp}
-                  keyboardType="number-pad" maxLength={6} placeholder="••••••" />
-                <Input testID="forgot-pw" label="New password" value={pw} onChangeText={setPw} secureTextEntry
-                  placeholder="At least 8 characters, letter + number" />
-                <Input testID="forgot-pw2" label="Confirm new password" value={pw2} onChangeText={setPw2} secureTextEntry />
-                {err ? <Text style={styles.err}>{err}</Text> : null}
-                <Button testID="forgot-submit" title="Change Password" onPress={reset} loading={loading} />
-                <Pressable onPress={resend} disabled={cooldown > 0 || loading}>
-                  <Text style={[styles.resend, (cooldown > 0 || loading) && { opacity: 0.5 }]}>
-                    {cooldown > 0 ? `You can request a new OTP in ${cooldown}s` : "Didn't get it? Resend OTP"}
-                  </Text>
-                </Pressable>
-                <Pressable onPress={() => { setStep("email"); setErr(null); setOtp(""); }}>
-                  <Text style={[styles.resend, { color: COLORS.muted }]}>Change email</Text>
-                </Pressable>
-              </View>
-            </>
-          )}
+        <ScrollView contentContainerStyle={{ paddingTop: insets.top + 12, flexGrow: 1 }} keyboardShouldPersistTaps="handled">
+          <View style={{ paddingHorizontal: 24 }}>
+            <Pressable onPress={() => router.back()} hitSlop={12} style={{ width: 40 }}>
+              <Ionicons name="chevron-back" size={28} color="#fff" />
+            </Pressable>
+            <View style={{ alignItems: "center", marginBottom: 18 }}><Logo size={96} /></View>
+          </View>
+
+          <View style={[styles.panel, { paddingBottom: insets.bottom + 28 }]}>
+            {step === "done" ? (
+              <>
+                <Text style={styles.h1}>Password changed ✅</Text>
+                <Text style={styles.sub}>You can now log in with your new password. All older sessions have been signed out.</Text>
+                <GradBtn testID="back-to-login" title="Go to Login" onPress={() => router.replace("/")} style={{ marginTop: 22 }} />
+              </>
+            ) : step === "email" ? (
+              <>
+                <Text style={styles.h1}>Forgot your password?</Text>
+                <Text style={styles.sub}>Enter your email. We will send you a 6-digit OTP.</Text>
+                <View style={{ gap: 14, marginTop: 20 }}>
+                  <AuthField dark testID="forgot-email" icon="mail-outline" placeholder="Email" value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" />
+                  {err ? <Text style={styles.err}>{err}</Text> : null}
+                  <GradBtn testID="forgot-send" title="Send OTP" onPress={sendOtp} loading={loading} />
+                </View>
+              </>
+            ) : (
+              <>
+                <Text style={styles.h1}>Enter OTP</Text>
+                <Text style={styles.sub}>{info}</Text>
+                <View style={{ gap: 14, marginTop: 20 }}>
+                  <AuthField dark testID="forgot-otp" icon="keypad-outline" placeholder="6-digit OTP" value={otp} onChangeText={setOtp} keyboardType="number-pad" maxLength={6} />
+                  <AuthField dark testID="forgot-pw" icon="lock-closed-outline" placeholder="New password (8+, letter + number)" value={pw} onChangeText={setPw} secure />
+                  <AuthField dark testID="forgot-pw2" icon="lock-closed-outline" placeholder="Confirm new password" value={pw2} onChangeText={setPw2} secure />
+                  {err ? <Text style={styles.err}>{err}</Text> : null}
+                  <GradBtn testID="forgot-submit" title="Change Password" onPress={reset} loading={loading} />
+                  <Pressable onPress={resend} disabled={cooldown > 0 || loading}>
+                    <Text style={[styles.link, (cooldown > 0 || loading) && { opacity: 0.5 }]}>
+                      {cooldown > 0 ? `You can request a new OTP in ${cooldown}s` : "Didn't get it? Resend OTP"}
+                    </Text>
+                  </Pressable>
+                  <Pressable onPress={() => { setStep("email"); setErr(null); setOtp(""); }}>
+                    <Text style={[styles.link, { color: "#64748B" }]}>Change email</Text>
+                  </Pressable>
+                </View>
+              </>
+            )}
+          </View>
         </ScrollView>
       </KeyboardAvoidingView>
-    </View>
+    </GradientBg>
   );
 }
 
 const styles = StyleSheet.create({
-  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: SPACING.lg, paddingBottom: SPACING.md },
-  hTitle: { fontSize: 16, fontWeight: "700", color: COLORS.onSurface },
-  title: { fontSize: 28, fontWeight: "800", color: COLORS.onSurface },
-  sub: { color: COLORS.onSurfaceSecondary, marginTop: 6, lineHeight: 20 },
-  err: { color: COLORS.error, fontSize: 13 },
-  resend: { color: COLORS.brand, textAlign: "center", fontWeight: "700", fontSize: 14 },
+  panel: { flex: 1, backgroundColor: "#fff", borderTopLeftRadius: 30, borderTopRightRadius: 30, paddingHorizontal: 22, paddingTop: 24 },
+  h1: { fontSize: 24, fontWeight: "800", color: "#0F172A" },
+  sub: { color: "#64748B", fontSize: 13, marginTop: 6, lineHeight: 19 },
+  err: { color: "#DC2626", fontSize: 13 },
+  link: { color: "#1F6BFF", textAlign: "center", fontWeight: "700", fontSize: 14 },
 });

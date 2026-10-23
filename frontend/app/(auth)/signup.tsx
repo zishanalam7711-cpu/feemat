@@ -1,35 +1,33 @@
 import React, { useState } from "react";
-import {
-  View, Text, StyleSheet, ScrollView, Pressable, KeyboardAvoidingView, Platform, Alert,
-} from "react-native";
+import { View, Text, StyleSheet, ScrollView, Pressable, KeyboardAvoidingView, Platform, Alert } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { COLORS, SPACING } from "@/src/lib/theme";
-import { Input } from "@/src/components/Input";
-import { Button } from "@/src/components/Button";
 import { useAuth } from "@/src/lib/auth";
+import { GradientBg, Logo, GradBtn, AuthField } from "@/src/components/ui";
 
 export default function SignupScreen() {
   const params = useLocalSearchParams<{ role?: string }>();
-  const role: "teacher" | "student" = (params.role as any) === "teacher" ? "teacher" : "student";
+  const initial: "teacher" | "student" = (params.role as any) === "student" ? "student" : "teacher";
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { signUp } = useAuth();
 
+  const [role, setRole] = useState<"teacher" | "student">(initial);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
   const [code, setCode] = useState("");
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const submit = async () => {
+  const onSubmit = async () => {
     setErr(null);
-    if (!name.trim()) return setErr("Please enter your name");
-    if (!email.trim()) return setErr("Please enter email");
+    if (!name.trim() || !email.trim() || !password) return setErr("Please fill all fields");
     if (password.length < 8 || !/[A-Za-z]/.test(password) || !/\d/.test(password))
       return setErr("Password must be at least 8 characters and include a letter and a number");
+    if (password !== confirm) return setErr("The two passwords do not match");
     setLoading(true);
     try {
       const u: any = await signUp(email.trim().toLowerCase(), password, name.trim(), role, role === "student" ? code.trim() : undefined);
@@ -39,68 +37,74 @@ export default function SignupScreen() {
       }
       // routed by gate
     } catch (e: any) {
-      setErr(e?.message || "Sign up failed");
+      setErr(e?.message || "Signup failed");
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <View style={{ flex: 1, backgroundColor: COLORS.surface }}>
-      <View style={[styles.header, { paddingTop: insets.top + SPACING.md }]}>
-        <Pressable onPress={() => router.back()} hitSlop={12}>
-          <Ionicons name="chevron-back" size={26} color={COLORS.onSurface} />
-        </Pressable>
-        <Text style={styles.hTitle}>{role === "teacher" ? "Teacher Sign Up" : "Student Sign Up"}</Text>
-        <View style={{ width: 26 }} />
-      </View>
+    <GradientBg>
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
-        <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
-          <Text style={styles.title}>Create your account</Text>
-          <Text style={styles.sub}>You'll be signed in as a {role}.</Text>
-
-          <View style={{ gap: SPACING.lg, marginTop: SPACING.xl }}>
-            <Input testID="signup-name-input" label="Full Name" value={name} onChangeText={setName}
-              placeholder={role === "teacher" ? "Ms. Priya Sharma" : "Rahul Kumar"} />
-            <Input testID="signup-email-input" label="Email" value={email} onChangeText={setEmail}
-              autoCapitalize="none" keyboardType="email-address" placeholder="you@school.com" />
-            <Input testID="signup-password-input" label="Password (8+ akshar, letter + number)" value={password} onChangeText={setPassword}
-              secureTextEntry placeholder="•••••••" />
-            {role === "student" && (
-              <View>
-                <Input testID="signup-code-input" label="Teacher code (if you have one)" value={code} onChangeText={setCode}
-                  autoCapitalize="characters" placeholder="e.g. K7M2P9QX" />
-                <Text style={{ color: COLORS.muted, fontSize: 12, marginTop: 6 }}>If your teacher already created your record, enter the code here. Otherwise leave it empty.</Text>
-              </View>
-            )}
-            {err ? <Text style={styles.err} testID="signup-error">{err}</Text> : null}
-            <Button testID="signup-submit-button" title="Create Account" loading={loading} onPress={submit} />
+        <ScrollView contentContainerStyle={{ paddingTop: insets.top + 12, flexGrow: 1 }} keyboardShouldPersistTaps="handled">
+          <View style={{ paddingHorizontal: 24 }}>
+            <Pressable onPress={() => router.back()} hitSlop={12} style={{ width: 40 }}>
+              <Ionicons name="chevron-back" size={28} color="#fff" />
+            </Pressable>
+            <View style={{ alignItems: "center", marginBottom: 18 }}>
+              <Logo size={96} />
+            </View>
           </View>
 
-          <Pressable
-            testID="go-login-btn"
-            onPress={() => router.replace({ pathname: "/(auth)/login", params: { role } })}
-            style={{ marginTop: SPACING.xl }}
-          >
-            <Text style={styles.link}>
-              Already have an account? <Text style={{ fontWeight: "700" }}>Log In</Text>
-            </Text>
-          </Pressable>
+          <View style={[styles.panel, { paddingBottom: insets.bottom + 28 }]}>
+            <Text style={styles.h1}>Create Account</Text>
+            <Text style={styles.sub}>Join Feemat and manage your fees easily</Text>
+
+            <View style={styles.seg}>
+              {(["teacher", "student"] as const).map((r) => (
+                <Pressable key={r} onPress={() => setRole(r)} style={[styles.segBtn, role === r && styles.segOn]} testID={`role-${r}`}>
+                  <Text style={[styles.segTxt, role === r && { color: "#fff" }]}>{r === "teacher" ? "Teacher" : "Student"}</Text>
+                </Pressable>
+              ))}
+            </View>
+
+            <View style={{ gap: 12, marginTop: 16 }}>
+              <AuthField dark testID="signup-name-input" icon="person-outline" placeholder="Full Name" value={name} onChangeText={setName} />
+              <AuthField dark testID="signup-email-input" icon="mail-outline" placeholder="Email" value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" />
+              <AuthField dark testID="signup-password-input" icon="lock-closed-outline" placeholder="Password (8+, letter + number)" value={password} onChangeText={setPassword} secure />
+              <AuthField dark testID="signup-confirm-input" icon="lock-closed-outline" placeholder="Confirm Password" value={confirm} onChangeText={setConfirm} secure />
+              {role === "student" ? (
+                <View>
+                  <AuthField dark testID="signup-code-input" icon="key-outline" placeholder="Teacher code (if you have one)" value={code} onChangeText={setCode} autoCapitalize="characters" />
+                  <Text style={styles.help}>If your teacher already created your record, enter the code here. Otherwise leave it empty.</Text>
+                </View>
+              ) : null}
+            </View>
+
+            {err ? <Text style={styles.err} testID="signup-error">{err}</Text> : null}
+
+            <GradBtn testID="signup-submit" title="Create Account" onPress={onSubmit} loading={loading} style={{ marginTop: 18 }} height={54} />
+
+            <Pressable onPress={() => router.replace({ pathname: "/(auth)/login", params: { role } })} testID="goto-login" style={{ marginTop: 18 }}>
+              <Text style={styles.bottom}>Already have an account? <Text style={styles.link}>Login</Text></Text>
+            </Pressable>
+          </View>
         </ScrollView>
       </KeyboardAvoidingView>
-    </View>
+    </GradientBg>
   );
 }
 
 const styles = StyleSheet.create({
-  header: {
-    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
-    paddingHorizontal: SPACING.lg, paddingBottom: SPACING.md,
-  },
-  hTitle: { fontSize: 16, fontWeight: "700", color: COLORS.onSurface },
-  body: { padding: SPACING.xl, paddingBottom: SPACING.xxl },
-  title: { fontSize: 28, fontWeight: "800", color: COLORS.onSurface },
-  sub: { color: COLORS.onSurfaceSecondary, marginTop: 6 },
-  err: { color: COLORS.error, fontSize: 13 },
-  link: { color: COLORS.brand, textAlign: "center", fontSize: 15 },
+  panel: { flex: 1, backgroundColor: "#fff", borderTopLeftRadius: 30, borderTopRightRadius: 30, paddingHorizontal: 22, paddingTop: 24 },
+  h1: { fontSize: 24, fontWeight: "800", color: "#0F172A" },
+  sub: { color: "#64748B", fontSize: 13, marginTop: 4 },
+  seg: { flexDirection: "row", backgroundColor: "#EEF4FF", borderRadius: 14, padding: 4, marginTop: 16 },
+  segBtn: { flex: 1, height: 42, borderRadius: 11, alignItems: "center", justifyContent: "center" },
+  segOn: { backgroundColor: "#1F6BFF" },
+  segTxt: { color: "#475569", fontWeight: "800", fontSize: 14 },
+  help: { color: "#64748B", fontSize: 12, marginTop: 6 },
+  err: { color: "#DC2626", fontSize: 13, marginTop: 12 },
+  bottom: { textAlign: "center", color: "#475569", fontSize: 13 },
+  link: { color: "#1F6BFF", fontWeight: "800" },
 });
