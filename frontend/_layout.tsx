@@ -18,12 +18,9 @@ const tabBar = {
   shadowOffset: { width: 0, height: -4 },
 } as const;
 
-const HIDDEN = [
-  "requests", "more", "student/[id]", "subscription", "classes", "homework", "exams", "reports", "announcements",
-  "attendance", "notifications", "add-student", "timetable", "upi", "receipt/[receiptNumber]", "idcard/[id]",
-];
+const HIDDEN = ["notifications", "pay", "teacher/[teacherId]", "fee", "homework", "results", "receipt/[receiptNumber]", "timetable"];
 
-export default function TeacherLayout() {
+export default function StudentLayout() {
   return (
     <Tabs
       screenOptions={{
@@ -35,8 +32,8 @@ export default function TeacherLayout() {
       }}
     >
       <Tabs.Screen name="index" options={{ title: "Home", tabBarIcon: ({ color, size }) => <Ionicons name="home" size={size} color={color} /> }} />
-      <Tabs.Screen name="students" options={{ title: "Students", tabBarIcon: ({ color, size }) => <Ionicons name="people" size={size} color={color} /> }} />
-      <Tabs.Screen name="collect" options={{ title: "Payments", tabBarIcon: ({ color, size }) => <Ionicons name="card" size={size} color={color} /> }} />
+      <Tabs.Screen name="search" options={{ title: "Teacher", tabBarIcon: ({ color, size }) => <Ionicons name="school" size={size} color={color} /> }} />
+      <Tabs.Screen name="payments" options={{ title: "Payments", tabBarIcon: ({ color, size }) => <Ionicons name="card" size={size} color={color} /> }} />
       <Tabs.Screen name="profile" options={{ title: "Profile", tabBarIcon: ({ color, size }) => <Ionicons name="person" size={size} color={color} /> }} />
       {HIDDEN.map((n) => <Tabs.Screen key={n} name={n} options={{ href: null }} />)}
     </Tabs>
