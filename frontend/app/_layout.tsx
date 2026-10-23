@@ -51,7 +51,7 @@ export default function RootLayout() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <AuthProvider>
-          <StatusBar style="dark" />
+          <StatusBar style="light" />
           {/* Android draws edge-to-edge, so the window no longer resizes for the keyboard: pad it ourselves. */}
           <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "android" ? "padding" : undefined}>
             <AuthGate />
