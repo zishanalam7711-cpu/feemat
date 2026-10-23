@@ -52,7 +52,7 @@ export function idCardHtml(card: any): string {
   const initial = (card.student?.name || "?").trim().charAt(0).toUpperCase();
   const styles = `
     body { font-family: -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; margin: 0; padding: 32px; background: #F8FAFC; }
-    .card { width: 320px; margin: 0 auto; border-radius: 24px; overflow: hidden; background: #fff; box-shadow: 0 20px 40px rgba(124,58,237,0.15); }
+    .card { width: 320px; margin: 0 auto; border-radius: 24px; overflow: hidden; background: #fff; box-shadow: 0 20px 40px rgba(31,107,255,0.15); }
     .head { background: linear-gradient(135deg,#7C3AED,#EC4899); padding: 22px 20px; color:#fff; text-align:center; }
     .head .logo { width:40px;height:40px;border-radius:10px;background:rgba(255,255,255,0.22); margin: 0 auto 8px auto; display:flex; align-items:center; justify-content:center; overflow:hidden; }
     .head .logo img { width:100%; height:100%; object-fit:cover; }

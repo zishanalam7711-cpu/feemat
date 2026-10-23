@@ -1,12 +1,12 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
-import { api, getCachedUser, getToken, saveToken, saveUser } from "./api";
+import { api, getCachedUser, getToken, saveToken, saveUser, setRemember } from "./api";
 
 export type User = { id: string; email: string; role: "teacher" | "student"; name: string };
 
 type Ctx = {
   user: User | null;
   loading: boolean;
-  signIn: (email: string, password: string, role?: "teacher" | "student") => Promise<User>;
+  signIn: (email: string, password: string, role?: "teacher" | "student", rememberMe?: boolean) => Promise<User>;
   signUp: (email: string, password: string, name: string, role: "teacher" | "student", claimCode?: string) => Promise<any>;
   signOut: () => Promise<void>;
   refresh: () => Promise<void>;
@@ -55,7 +55,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     })();
   }, [refresh]);
 
-  const signIn = useCallback(async (email: string, password: string, role?: "teacher" | "student") => {
+  const signIn = useCallback(async (email: string, password: string, role?: "teacher" | "student", rememberMe: boolean = true) => {
     const res = await api<{ token: string; user: User }>("/auth/login", {
       method: "POST",
       body: { email, password, role },
@@ -66,6 +66,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const actual = res.user.role === "teacher" ? "Teacher" : "Student";
       throw new Error(`This is a ${actual} account. Please log in from the ${actual} portal.`);
     }
+    setRemember(rememberMe);
     await saveToken(res.token);
     await saveUser(res.user);
     setUser(res.user);
@@ -79,6 +80,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         body: { email, password, name, role, claim_code: claimCode || undefined },
         auth: false,
       });
+      setRemember(true);
       await saveToken(res.token);
       await saveUser(res.user);
       setUser(res.user);

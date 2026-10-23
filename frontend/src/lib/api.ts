@@ -5,19 +5,26 @@ export const API_BASE = (process.env.EXPO_PUBLIC_BACKEND_URL ?? "").replace(/\/$
 const TOKEN_KEY = "feemat.token";
 const USER_KEY = "feemat.user";
 
+// "Remember me": when it is off, the login lives only in memory and is gone when the app closes.
+let memToken: string | null = null;
+let remember = true;
+export function setRemember(v: boolean) {
+  remember = v;
+}
 export async function saveToken(token: string | null) {
-  if (token) await AsyncStorage.setItem(TOKEN_KEY, token);
+  memToken = token;
+  if (token && remember) await AsyncStorage.setItem(TOKEN_KEY, token);
   else await AsyncStorage.removeItem(TOKEN_KEY);
 }
 export async function getToken(): Promise<string | null> {
-  return AsyncStorage.getItem(TOKEN_KEY);
+  return memToken ?? (await AsyncStorage.getItem(TOKEN_KEY));
 }
 
 // The signed-in user is cached so the app opens straight into the right portal,
 // even if the server is asleep or there is no internet.
 export async function saveUser(user: any | null) {
   try {
-    if (user) await AsyncStorage.setItem(USER_KEY, JSON.stringify(user));
+    if (user && remember) await AsyncStorage.setItem(USER_KEY, JSON.stringify(user));
     else await AsyncStorage.removeItem(USER_KEY);
   } catch {}
 }
