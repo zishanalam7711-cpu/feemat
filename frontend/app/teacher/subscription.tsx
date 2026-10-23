@@ -34,7 +34,7 @@ export default function Subscription() {
   return (
     <View style={{ flex: 1, backgroundColor: COLORS.surfaceSecondary }}>
       <View style={[styles.header, { paddingTop: insets.top + SPACING.md }]}>
-        <Pressable onPress={() => router.back()} hitSlop={12}><Ionicons name="chevron-back" size={26} color={COLORS.onSurface} /></Pressable>
+        <Pressable onPress={() => router.back()} hitSlop={12}><Ionicons name="chevron-back" size={26} color="#FFFFFF" /></Pressable>
         <Text style={styles.hTitle}>Pricing</Text>
         <View style={{ width: 26 }} />
       </View>
@@ -64,7 +64,7 @@ export default function Subscription() {
         </View>
 
         {/* PRO MONTHLY */}
-        <LinearGradient colors={["#7C3AED", "#A855F7"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.planPro}>
+        <LinearGradient colors={["#1F6BFF", "#35A7FF"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.planPro}>
           <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
             <Text style={[styles.planName, { color: "#fff" }]}>Pro Monthly</Text>
             {isPro && sub?.billing === "monthly" && <View style={styles.badgeLight}><Text style={styles.badgeLightTxt}>ACTIVE</Text></View>}
@@ -85,7 +85,7 @@ export default function Subscription() {
         </LinearGradient>
 
         {/* PRO YEARLY */}
-        <LinearGradient colors={["#EC4899", "#7C3AED"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.planPro}>
+        <LinearGradient colors={["#16B5F0", "#1F6BFF"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.planPro}>
           <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
             <Text style={[styles.planName, { color: "#fff" }]}>Pro Yearly</Text>
             <View style={styles.saveBadge}><Text style={styles.saveTxt}>BEST VALUE • Save ₹589/year</Text></View>
@@ -128,8 +128,8 @@ function FeatureLight({ label }: any) {
 
 const styles = StyleSheet.create({
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
-  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: SPACING.lg, paddingBottom: SPACING.md, backgroundColor: COLORS.surface, borderBottomWidth: 1, borderBottomColor: COLORS.divider },
-  hTitle: { fontSize: 16, fontWeight: "700", color: COLORS.onSurface },
+  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: SPACING.lg, paddingBottom: SPACING.md, backgroundColor: "#071E4A" },
+  hTitle: { fontSize: 16, fontWeight: "700", color: "#FFFFFF" },
   stateCard: { backgroundColor: COLORS.surface, padding: SPACING.lg, borderRadius: RADIUS.md, borderWidth: 1, borderColor: COLORS.divider },
   stateTitle: { color: COLORS.muted, fontSize: 12, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.5 },
   stateVal: { fontSize: 22, fontWeight: "800", color: COLORS.onSurface },

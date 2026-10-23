@@ -12,8 +12,8 @@ import { api } from "@/src/lib/api";
 import { Avatar } from "@/src/components/Avatar";
 
 const DARK = {
-  bg: "#120A28",
-  card: "#1E1440",
+  bg: "#071B45",
+  card: "#0E2A63",
   border: "rgba(255,255,255,0.08)",
   text: "#FFFFFF",
   sub: "rgba(255,255,255,0.6)",
@@ -101,7 +101,7 @@ export default function CollectFees() {
       </View>
 
       {loading ? (
-        <View style={styles.center}><ActivityIndicator color="#A855F7" /></View>
+        <View style={styles.center}><ActivityIndicator color="#35A7FF" /></View>
       ) : items.length === 0 ? (
         <View style={styles.center}>
           <Ionicons name="checkmark-circle-outline" size={56} color="rgba(255,255,255,0.25)" />
@@ -114,7 +114,7 @@ export default function CollectFees() {
           contentContainerStyle={{ padding: SPACING.md, gap: SPACING.sm, paddingBottom: SPACING.xxl }}
           renderItem={({ item }) => (
             <Pressable onPress={() => openSheet(item)} style={styles.row}>
-              <Avatar name={item.student?.name} uri={item.student?.photo_url} size={42} bg="rgba(168,85,247,0.2)" fg="#C4B5FD" />
+              <Avatar name={item.student?.name} uri={item.student?.photo_url} size={42} bg="rgba(53,167,255,0.2)" fg="#9CC3FF" />
               <View style={{ flex: 1 }}>
                 <Text style={styles.name} numberOfLines={1}>{item.student?.name || "Student"}</Text>
                 <Text style={styles.meta}>{item.admission_number} • Monthly {inr(item.monthly_fee)}</Text>
@@ -185,19 +185,19 @@ const styles = StyleSheet.create({
   searchInput: { flex: 1, color: "#fff", fontSize: 14 },
   chips: { flexDirection: "row", flexWrap: "wrap", gap: SPACING.sm, marginTop: SPACING.sm },
   chip: { height: 34, paddingHorizontal: SPACING.lg, borderRadius: 999, backgroundColor: DARK.input, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: DARK.border },
-  chipOn: { backgroundColor: "#7C3AED", borderColor: "#7C3AED" },
+  chipOn: { backgroundColor: "#1F6BFF", borderColor: "#1F6BFF" },
   chipTxt: { color: DARK.sub, fontSize: 13, fontWeight: "600" },
   row: { flexDirection: "row", alignItems: "center", gap: SPACING.md, padding: SPACING.md, borderRadius: RADIUS.md, backgroundColor: DARK.card, borderWidth: 1, borderColor: DARK.border },
   name: { color: DARK.text, fontWeight: "700", fontSize: 15 },
   meta: { color: DARK.sub, fontSize: 12, marginTop: 2 },
   amt: { fontWeight: "800", fontSize: 15 },
-  collectTxt: { color: "#A855F7", fontSize: 12, fontWeight: "700", marginTop: 2 },
+  collectTxt: { color: "#35A7FF", fontSize: 12, fontWeight: "700", marginTop: 2 },
   overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "flex-end" },
   sheet: { backgroundColor: DARK.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: SPACING.lg, maxHeight: "85%" },
   sheetTitle: { color: "#fff", fontSize: 20, fontWeight: "800" },
   label: { color: DARK.sub, fontSize: 12, fontWeight: "700", marginTop: SPACING.lg, marginBottom: 6, textTransform: "uppercase" },
   input: { height: 48, borderRadius: RADIUS.md, backgroundColor: DARK.input, color: "#fff", paddingHorizontal: SPACING.md, fontSize: 16, borderWidth: 1, borderColor: DARK.border },
-  fullLink: { color: "#A855F7", fontWeight: "700", fontSize: 13, marginTop: 8 },
-  saveBtn: { height: 52, borderRadius: RADIUS.md, backgroundColor: "#7C3AED", alignItems: "center", justifyContent: "center", marginTop: SPACING.xl },
+  fullLink: { color: "#35A7FF", fontWeight: "700", fontSize: 13, marginTop: 8 },
+  saveBtn: { height: 52, borderRadius: RADIUS.md, backgroundColor: "#1F6BFF", alignItems: "center", justifyContent: "center", marginTop: SPACING.xl },
   saveTxt: { color: "#fff", fontWeight: "800", fontSize: 15 },
 });

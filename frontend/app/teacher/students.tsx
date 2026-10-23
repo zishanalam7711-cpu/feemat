@@ -120,8 +120,8 @@ export default function StudentsScreen() {
 }
 
 const styles = StyleSheet.create({
-  header: { paddingHorizontal: SPACING.xl, paddingBottom: SPACING.md, backgroundColor: COLORS.surface, borderBottomWidth: 1, borderBottomColor: COLORS.divider },
-  title: { fontSize: 24, fontWeight: "800", color: COLORS.onSurface, marginBottom: SPACING.md },
+  header: { paddingHorizontal: SPACING.xl, paddingBottom: SPACING.md, backgroundColor: "#071E4A" },
+  title: { fontSize: 24, fontWeight: "800", color: "#FFFFFF", marginBottom: SPACING.md },
   searchWrap: { flexDirection: "row", alignItems: "center", gap: SPACING.sm, backgroundColor: COLORS.surfaceSecondary, borderRadius: RADIUS.md, paddingHorizontal: SPACING.md, height: 44 },
   searchInput: { flex: 1, color: COLORS.onSurface, fontSize: 14 },
   chip: { flexShrink: 0, height: 36, paddingHorizontal: SPACING.lg, borderRadius: RADIUS.pill, backgroundColor: COLORS.surfaceSecondary, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: COLORS.border },

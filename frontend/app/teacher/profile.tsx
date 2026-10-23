@@ -161,8 +161,8 @@ function ReminderControls() {
 
 const styles = StyleSheet.create({
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
-  header: { alignItems: "center", padding: SPACING.xl, gap: SPACING.sm, backgroundColor: COLORS.surface },
-  name: { fontSize: 22, fontWeight: "800", color: COLORS.onSurface },
+  header: { alignItems: "center", padding: SPACING.xl, gap: SPACING.sm, backgroundColor: "#071E4A" },
+  name: { fontSize: 22, fontWeight: "800", color: "#FFFFFF" },
   tidPill: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: SPACING.md, paddingVertical: 6, backgroundColor: COLORS.brandSoft, borderRadius: RADIUS.pill },
   tid: { color: COLORS.brand, fontWeight: "700", fontSize: 13 },
   section: { padding: SPACING.lg, gap: SPACING.md, marginTop: SPACING.md, backgroundColor: COLORS.surface, marginHorizontal: SPACING.md, borderRadius: RADIUS.md },

@@ -14,8 +14,8 @@ import {
 } from "@/src/components/AudiencePicker";
 
 const DARK = {
-  bg: "#120A28",
-  card: "#1E1440",
+  bg: "#071B45",
+  card: "#0E2A63",
   border: "rgba(255,255,255,0.08)",
   text: "#FFFFFF",
   sub: "rgba(255,255,255,0.6)",
@@ -97,7 +97,7 @@ export default function Announcements() {
       </View>
 
       {loading ? (
-        <View style={styles.center}><ActivityIndicator color="#A855F7" /></View>
+        <View style={styles.center}><ActivityIndicator color="#35A7FF" /></View>
       ) : items.length === 0 ? (
         <View style={styles.center}>
           <Ionicons name="megaphone-outline" size={56} color="rgba(255,255,255,0.25)" />
@@ -169,7 +169,7 @@ const styles = StyleSheet.create({
   center: { flex: 1, alignItems: "center", justifyContent: "center", padding: SPACING.xl, gap: SPACING.sm },
   header: { flexDirection: "row", alignItems: "center", gap: SPACING.md, paddingHorizontal: SPACING.lg, paddingBottom: SPACING.md },
   title: { flex: 1, color: "#fff", fontSize: 20, fontWeight: "800" },
-  addBtn: { flexDirection: "row", alignItems: "center", gap: 2, paddingHorizontal: 12, height: 34, borderRadius: 999, backgroundColor: "#7C3AED" },
+  addBtn: { flexDirection: "row", alignItems: "center", gap: 2, paddingHorizontal: 12, height: 34, borderRadius: 999, backgroundColor: "#1F6BFF" },
   addTxt: { color: "#fff", fontWeight: "700", fontSize: 13 },
   emptyTxt: { color: "#fff", fontSize: 16, fontWeight: "700", marginTop: SPACING.md },
   card: { padding: SPACING.md, backgroundColor: DARK.card, borderRadius: RADIUS.md, borderWidth: 1, borderColor: DARK.border, gap: 6 },
@@ -184,8 +184,8 @@ const styles = StyleSheet.create({
   input: { minHeight: 46, borderRadius: RADIUS.md, backgroundColor: DARK.input, color: "#fff", paddingHorizontal: SPACING.md, fontSize: 15, borderWidth: 1, borderColor: DARK.border },
   wrap: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   chip: { paddingHorizontal: 12, height: 34, borderRadius: 999, backgroundColor: DARK.input, borderWidth: 1, borderColor: DARK.border, alignItems: "center", justifyContent: "center" },
-  chipOn: { backgroundColor: "#7C3AED", borderColor: "#7C3AED" },
+  chipOn: { backgroundColor: "#1F6BFF", borderColor: "#1F6BFF" },
   chipTxt: { color: DARK.sub, fontSize: 13, fontWeight: "600" },
-  saveBtn: { height: 50, borderRadius: RADIUS.md, backgroundColor: "#7C3AED", alignItems: "center", justifyContent: "center", marginTop: SPACING.xl },
+  saveBtn: { height: 50, borderRadius: RADIUS.md, backgroundColor: "#1F6BFF", alignItems: "center", justifyContent: "center", marginTop: SPACING.xl },
   saveTxt: { color: "#fff", fontWeight: "800", fontSize: 15 },
 });

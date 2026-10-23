@@ -10,8 +10,8 @@ import { api } from "@/src/lib/api";
 import { Avatar } from "@/src/components/Avatar";
 
 const DARK = {
-  bg: "#120A28",
-  card: "#1E1440",
+  bg: "#071B45",
+  card: "#0E2A63",
   border: "rgba(255,255,255,0.08)",
   text: "#FFFFFF",
   sub: "rgba(255,255,255,0.6)",
@@ -226,7 +226,7 @@ export default function AttendanceScreen() {
           )}
 
           {loading ? (
-            <View style={styles.center}><ActivityIndicator color="#A855F7" /></View>
+            <View style={styles.center}><ActivityIndicator color="#35A7FF" /></View>
           ) : filtered.length === 0 ? (
             <View style={styles.center}>
               <Ionicons name="people-outline" size={56} color="rgba(255,255,255,0.25)" />
@@ -241,8 +241,8 @@ export default function AttendanceScreen() {
                 const cur = marks[item.id];
                 const dirty = cur !== saved[item.id];
                 return (
-                  <View style={[styles.row, dirty && { borderColor: "#7C3AED" }]}>
-                    <Avatar name={item.student?.name} uri={item.student?.photo_url} size={40} bg="rgba(168,85,247,0.2)" fg="#C4B5FD" />
+                  <View style={[styles.row, dirty && { borderColor: "#1F6BFF" }]}>
+                    <Avatar name={item.student?.name} uri={item.student?.photo_url} size={40} bg="rgba(53,167,255,0.2)" fg="#9CC3FF" />
                     <View style={{ flex: 1 }}>
                       <Text style={styles.name} numberOfLines={1}>{item.student?.name || "Student"}</Text>
                       <Text style={styles.meta}>{item.admission_number}</Text>
@@ -283,7 +283,7 @@ export default function AttendanceScreen() {
           </View>
 
           {repLoading ? (
-            <View style={styles.center}><ActivityIndicator color="#A855F7" /></View>
+            <View style={styles.center}><ActivityIndicator color="#35A7FF" /></View>
           ) : !report || (report.items || []).length === 0 ? (
             <View style={styles.center}>
               <Ionicons name="stats-chart-outline" size={56} color="rgba(255,255,255,0.25)" />
@@ -296,12 +296,12 @@ export default function AttendanceScreen() {
               ListHeaderComponent={
                 <View style={{ gap: SPACING.sm, marginBottom: SPACING.sm }}>
                   <View style={styles.summary}>
-                    <Sum label="Class Avg" v={`${avgPct}%`} color="#A855F7" />
+                    <Sum label="Class Avg" v={`${avgPct}%`} color="#35A7FF" />
                     <Sum label="Days marked" v={report.days_marked} color="#3B82F6" />
                     <Sum label="Below 75%" v={(report.items || []).filter((i: any) => i.total > 0 && i.pct < 75).length} color="#EF4444" />
                   </View>
                   <Pressable onPress={shareReport} style={styles.shareBtn}>
-                    <Ionicons name="share-social" size={16} color="#A855F7" />
+                    <Ionicons name="share-social" size={16} color="#35A7FF" />
                     <Text style={styles.shareTxt}>Share Report</Text>
                   </Pressable>
                 </View>
@@ -355,7 +355,7 @@ const styles = StyleSheet.create({
   title: { color: "#fff", fontSize: 22, fontWeight: "800" },
   tabs: { flexDirection: "row", marginHorizontal: SPACING.md, backgroundColor: DARK.input, borderRadius: 12, padding: 3 },
   tabBtn: { flex: 1, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center" },
-  tabOn: { backgroundColor: "#7C3AED" },
+  tabOn: { backgroundColor: "#1F6BFF" },
   tabTxt: { color: DARK.sub, fontWeight: "700", fontSize: 13 },
   dateRow: { flexDirection: "row", alignItems: "center", gap: SPACING.sm, paddingHorizontal: SPACING.md, paddingVertical: SPACING.md },
   navBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: DARK.input, alignItems: "center", justifyContent: "center" },
@@ -371,7 +371,7 @@ const styles = StyleSheet.create({
   allTxt: { color: "#10B981", fontWeight: "700", fontSize: 12 },
   classRow: { gap: 8, paddingHorizontal: SPACING.md, paddingVertical: SPACING.sm },
   cChip: { paddingHorizontal: 14, height: 32, borderRadius: 999, backgroundColor: DARK.input, borderWidth: 1, borderColor: DARK.border, alignItems: "center", justifyContent: "center" },
-  cChipOn: { backgroundColor: "#7C3AED", borderColor: "#7C3AED" },
+  cChipOn: { backgroundColor: "#1F6BFF", borderColor: "#1F6BFF" },
   cChipTxt: { color: DARK.sub, fontSize: 13, fontWeight: "700" },
   row: { flexDirection: "row", alignItems: "center", gap: SPACING.sm, padding: SPACING.sm, borderRadius: RADIUS.md, backgroundColor: DARK.card, borderWidth: 1, borderColor: DARK.border },
   name: { color: DARK.text, fontWeight: "700", fontSize: 14 },
@@ -381,12 +381,12 @@ const styles = StyleSheet.create({
   chip: { minWidth: 34, paddingHorizontal: 6, height: 30, borderRadius: 8, borderWidth: 1.5, alignItems: "center", justifyContent: "center" },
   chipTxt: { fontSize: 11, fontWeight: "800" },
   footer: { position: "absolute", left: 0, right: 0, bottom: 0, padding: SPACING.md, backgroundColor: DARK.bg, borderTopWidth: 1, borderTopColor: DARK.border },
-  saveBtn: { height: 50, borderRadius: RADIUS.md, backgroundColor: "#7C3AED", alignItems: "center", justifyContent: "center" },
+  saveBtn: { height: 50, borderRadius: RADIUS.md, backgroundColor: "#1F6BFF", alignItems: "center", justifyContent: "center" },
   saveTxt: { color: "#fff", fontWeight: "800", fontSize: 15 },
   repRow: { padding: SPACING.md, borderRadius: RADIUS.md, backgroundColor: DARK.card, borderWidth: 1, borderColor: DARK.border, gap: 8 },
   pct: { fontSize: 20, fontWeight: "800" },
   barBg: { height: 6, borderRadius: 3, backgroundColor: "rgba(255,255,255,0.1)", overflow: "hidden" },
   barFill: { height: 6, borderRadius: 3 },
-  shareBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, height: 40, borderRadius: 12, backgroundColor: "rgba(168,85,247,0.15)", marginHorizontal: SPACING.md },
-  shareTxt: { color: "#A855F7", fontWeight: "700", fontSize: 13 },
+  shareBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, height: 40, borderRadius: 12, backgroundColor: "rgba(53,167,255,0.15)", marginHorizontal: SPACING.md },
+  shareTxt: { color: "#35A7FF", fontWeight: "700", fontSize: 13 },
 });

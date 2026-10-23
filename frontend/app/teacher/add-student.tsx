@@ -11,8 +11,8 @@ import { api } from "@/src/lib/api";
 import { PhotoPicker } from "@/src/components/PhotoPicker";
 
 const DARK = {
-  bg: "#120A28",
-  card: "#1E1440",
+  bg: "#071B45",
+  card: "#0E2A63",
   border: "rgba(255,255,255,0.08)",
   text: "#FFFFFF",
   sub: "rgba(255,255,255,0.6)",
@@ -137,13 +137,13 @@ export default function AddStudent() {
             <Ionicons name="logo-whatsapp" size={20} color="#fff" />
             <Text style={styles.bigTxt}>{phone.trim() ? "Send code on WhatsApp" : "Share code"}</Text>
           </Pressable>
-          <Pressable onPress={() => router.replace(`/teacher/student/${done.id}` as any)} style={[styles.big, { backgroundColor: "#7C3AED" }]}>
+          <Pressable onPress={() => router.replace(`/teacher/student/${done.id}` as any)} style={[styles.big, { backgroundColor: "#1F6BFF" }]}>
             <Ionicons name="person" size={20} color="#fff" />
             <Text style={styles.bigTxt}>Open student details (collect fees)</Text>
           </Pressable>
-          <Pressable onPress={reset} style={[styles.big, { backgroundColor: "rgba(168,85,247,0.18)" }]}>
-            <Ionicons name="person-add" size={20} color="#A855F7" />
-            <Text style={[styles.bigTxt, { color: "#A855F7" }]}>Add another student</Text>
+          <Pressable onPress={reset} style={[styles.big, { backgroundColor: "rgba(53,167,255,0.18)" }]}>
+            <Ionicons name="person-add" size={20} color="#35A7FF" />
+            <Text style={[styles.bigTxt, { color: "#35A7FF" }]}>Add another student</Text>
           </Pressable>
           <Text style={styles.note}>The code stays visible on the student's detail screen until the student joins the app.</Text>
         </ScrollView>
@@ -158,7 +158,7 @@ export default function AddStudent() {
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
         <ScrollView contentContainerStyle={{ padding: SPACING.lg, paddingBottom: 120 }} keyboardShouldPersistTaps="handled">
           <View style={styles.infoBox}>
-            <Ionicons name="information-circle" size={18} color="#A855F7" />
+            <Ionicons name="information-circle" size={18} color="#35A7FF" />
             <Text style={styles.infoTxt}>You can create a record even if the student doesn't have the app. Fees, attendance and marks all work.</Text>
           </View>
 
@@ -243,17 +243,17 @@ function Chip({ label, on, onPress }: { label: string; on: boolean; onPress: () 
 const styles = StyleSheet.create({
   header: { flexDirection: "row", alignItems: "center", gap: SPACING.md, paddingHorizontal: SPACING.lg, paddingBottom: SPACING.md },
   title: { color: "#fff", fontSize: 22, fontWeight: "800" },
-  infoBox: { flexDirection: "row", gap: 8, padding: SPACING.md, borderRadius: RADIUS.md, backgroundColor: "rgba(168,85,247,0.12)", borderWidth: 1, borderColor: "rgba(168,85,247,0.3)" },
+  infoBox: { flexDirection: "row", gap: 8, padding: SPACING.md, borderRadius: RADIUS.md, backgroundColor: "rgba(53,167,255,0.12)", borderWidth: 1, borderColor: "rgba(53,167,255,0.3)" },
   infoTxt: { flex: 1, color: "rgba(255,255,255,0.85)", fontSize: 12, lineHeight: 17 },
   label: { color: DARK.sub, fontSize: 12, fontWeight: "700", marginTop: SPACING.lg, marginBottom: 6, textTransform: "uppercase" },
   input: { height: 46, borderRadius: RADIUS.md, backgroundColor: DARK.input, color: "#fff", paddingHorizontal: SPACING.md, fontSize: 15, borderWidth: 1, borderColor: DARK.border },
   wrap: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 4 },
   chip: { paddingHorizontal: 12, height: 34, borderRadius: 999, backgroundColor: DARK.input, borderWidth: 1, borderColor: DARK.border, alignItems: "center", justifyContent: "center" },
-  chipOn: { backgroundColor: "#7C3AED", borderColor: "#7C3AED" },
+  chipOn: { backgroundColor: "#1F6BFF", borderColor: "#1F6BFF" },
   chipTxt: { color: DARK.sub, fontSize: 13, fontWeight: "600" },
   hint: { color: DARK.sub, fontSize: 11, marginTop: 8, lineHeight: 16 },
   footer: { position: "absolute", left: 0, right: 0, bottom: 0, padding: SPACING.md, backgroundColor: DARK.bg, borderTopWidth: 1, borderTopColor: DARK.border },
-  saveBtn: { height: 50, borderRadius: RADIUS.md, backgroundColor: "#7C3AED", alignItems: "center", justifyContent: "center" },
+  saveBtn: { height: 50, borderRadius: RADIUS.md, backgroundColor: "#1F6BFF", alignItems: "center", justifyContent: "center" },
   saveTxt: { color: "#fff", fontWeight: "800", fontSize: 15 },
   okCard: { alignItems: "center", padding: SPACING.xl, borderRadius: RADIUS.md, backgroundColor: DARK.card, borderWidth: 1, borderColor: DARK.border, gap: 6 },
   okIcon: { width: 64, height: 64, borderRadius: 32, backgroundColor: "#10B981", alignItems: "center", justifyContent: "center" },

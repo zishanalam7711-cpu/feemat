@@ -40,8 +40,8 @@ export default function MoreScreen() {
 }
 
 const styles = StyleSheet.create({
-  header: { paddingHorizontal: SPACING.xl, paddingBottom: SPACING.md, backgroundColor: COLORS.surface, borderBottomWidth: 1, borderBottomColor: COLORS.divider },
-  title: { fontSize: 24, fontWeight: "800", color: COLORS.onSurface },
+  header: { paddingHorizontal: SPACING.xl, paddingBottom: SPACING.md, backgroundColor: "#071E4A" },
+  title: { fontSize: 24, fontWeight: "800", color: "#FFFFFF" },
   sub: { color: COLORS.muted, marginTop: 4 },
   row: { flexDirection: "row", alignItems: "center", gap: SPACING.md, padding: SPACING.lg, backgroundColor: COLORS.surface, borderRadius: RADIUS.md, borderWidth: 1, borderColor: COLORS.divider },
   iconWrap: { width: 44, height: 44, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: COLORS.brandSoft },

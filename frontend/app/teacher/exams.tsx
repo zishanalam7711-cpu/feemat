@@ -15,8 +15,8 @@ import { Avatar } from "@/src/components/Avatar";
 import { ProUpgradeModal } from "@/src/components/ProUpgradeModal";
 
 const DARK = {
-  bg: "#120A28",
-  card: "#1E1440",
+  bg: "#071B45",
+  card: "#0E2A63",
   border: "rgba(255,255,255,0.08)",
   text: "#FFFFFF",
   sub: "rgba(255,255,255,0.6)",
@@ -229,7 +229,7 @@ export default function Exams() {
       </View>
 
       {loading ? (
-        <View style={styles.center}><ActivityIndicator color="#A855F7" /></View>
+        <View style={styles.center}><ActivityIndicator color="#35A7FF" /></View>
       ) : exams.length === 0 ? (
         <View style={styles.center}>
           <Ionicons name="document-text-outline" size={56} color="rgba(255,255,255,0.25)" />
@@ -254,7 +254,7 @@ export default function Exams() {
                 </View>
                 {st.n > 0 ? (
                   <View style={styles.statRow}>
-                    <Mini label="Average" value={`${st.avg}%`} color="#A855F7" />
+                    <Mini label="Average" value={`${st.avg}%`} color="#35A7FF" />
                     <Mini label="Pass" value={`${st.passPct}%`} color="#10B981" />
                     <Mini label="Highest" value={String(st.high)} color="#F59E0B" />
                     <Mini label="Marks" value={entered} color="#3B82F6" />
@@ -283,7 +283,7 @@ export default function Exams() {
           <ScrollView contentContainerStyle={{ padding: SPACING.md, gap: SPACING.sm, paddingBottom: SPACING.xxl }}>
             {det && det.n > 0 && (
               <View style={styles.statRow}>
-                <Mini label="Average" value={`${det.avg}%`} color="#A855F7" />
+                <Mini label="Average" value={`${det.avg}%`} color="#35A7FF" />
                 <Mini label="Pass" value={`${det.passPct}%`} color="#10B981" />
                 <Mini label="Highest" value={String(det.high)} color="#F59E0B" />
                 <Mini label="Lowest" value={String(det.low)} color="#EF4444" />
@@ -291,13 +291,13 @@ export default function Exams() {
             )}
 
             <View style={{ flexDirection: "row", gap: SPACING.sm }}>
-              <Pressable onPress={() => selected && openEntry(selected)} style={[styles.action, { backgroundColor: "#7C3AED" }]}>
+              <Pressable onPress={() => selected && openEntry(selected)} style={[styles.action, { backgroundColor: "#1F6BFF" }]}>
                 <Ionicons name="create" size={16} color="#fff" />
                 <Text style={styles.actionTxt}>Enter / Edit Marks</Text>
               </Pressable>
-              <Pressable onPress={() => selected && shareResults(selected)} style={[styles.action, { backgroundColor: "rgba(168,85,247,0.18)" }]}>
-                <Ionicons name="share-social" size={16} color="#A855F7" />
-                <Text style={[styles.actionTxt, { color: "#A855F7" }]}>Share</Text>
+              <Pressable onPress={() => selected && shareResults(selected)} style={[styles.action, { backgroundColor: "rgba(53,167,255,0.18)" }]}>
+                <Ionicons name="share-social" size={16} color="#35A7FF" />
+                <Text style={[styles.actionTxt, { color: "#35A7FF" }]}>Share</Text>
               </Pressable>
             </View>
 
@@ -313,7 +313,7 @@ export default function Exams() {
                 return (
                   <View key={m.id} style={[styles.rankRow, m.rank === 1 && { borderColor: "#F59E0B" }]}>
                     <Text style={styles.medal}>{medal}</Text>
-                    <Avatar name={c?.student?.name} uri={c?.student?.photo_url} size={36} bg="rgba(168,85,247,0.2)" fg="#C4B5FD" />
+                    <Avatar name={c?.student?.name} uri={c?.student?.photo_url} size={36} bg="rgba(53,167,255,0.2)" fg="#9CC3FF" />
                     <View style={{ flex: 1 }}>
                       <Text style={styles.name} numberOfLines={1}>{c?.student?.name || "Student"}</Text>
                       <Text style={styles.meta}>{m.marks}/{selected?.total_marks} • {m.percentage}% • {m.result === "pass" ? "Pass" : "Fail"}</Text>
@@ -322,7 +322,7 @@ export default function Exams() {
                       <Text style={[styles.gradeTxt, { color: gradeColor(m.grade) }]}>{m.grade}</Text>
                     </View>
                     <Pressable onPress={() => marksheet(m.student_user_id)} hitSlop={8} style={styles.pdfBtn}>
-                      <Ionicons name="document-attach" size={18} color="#A855F7" />
+                      <Ionicons name="document-attach" size={18} color="#35A7FF" />
                     </Pressable>
                   </View>
                 );
@@ -445,7 +445,7 @@ const styles = StyleSheet.create({
   center: { flex: 1, alignItems: "center", justifyContent: "center", padding: SPACING.xl, gap: SPACING.sm },
   header: { flexDirection: "row", alignItems: "center", gap: SPACING.md, paddingHorizontal: SPACING.lg, paddingBottom: SPACING.md },
   title: { flex: 1, color: "#fff", fontSize: 20, fontWeight: "800" },
-  addBtn: { flexDirection: "row", alignItems: "center", gap: 2, paddingHorizontal: 12, height: 34, borderRadius: 999, backgroundColor: "#7C3AED" },
+  addBtn: { flexDirection: "row", alignItems: "center", gap: 2, paddingHorizontal: 12, height: 34, borderRadius: 999, backgroundColor: "#1F6BFF" },
   addTxt: { color: "#fff", fontWeight: "700", fontSize: 13 },
   emptyTxt: { color: "#fff", fontSize: 16, fontWeight: "700", marginTop: SPACING.md },
   card: { padding: SPACING.md, backgroundColor: DARK.card, borderRadius: RADIUS.md, borderWidth: 1, borderColor: DARK.border },
@@ -465,7 +465,7 @@ const styles = StyleSheet.create({
   name: { color: "#fff", fontWeight: "700", fontSize: 14 },
   gradePill: { paddingHorizontal: 10, height: 26, borderRadius: 13, alignItems: "center", justifyContent: "center" },
   gradeTxt: { fontWeight: "800", fontSize: 12 },
-  pdfBtn: { width: 34, height: 34, borderRadius: 17, backgroundColor: "rgba(168,85,247,0.15)", alignItems: "center", justifyContent: "center" },
+  pdfBtn: { width: 34, height: 34, borderRadius: 17, backgroundColor: "rgba(53,167,255,0.15)", alignItems: "center", justifyContent: "center" },
   overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "flex-end" },
   sheet: { backgroundColor: DARK.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: SPACING.lg },
   sheetTitle: { color: "#fff", fontSize: 20, fontWeight: "800" },
@@ -473,9 +473,9 @@ const styles = StyleSheet.create({
   input: { height: 46, borderRadius: RADIUS.md, backgroundColor: DARK.input, color: "#fff", paddingHorizontal: SPACING.md, fontSize: 15, borderWidth: 1, borderColor: DARK.border },
   wrap: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: SPACING.sm },
   chip: { paddingHorizontal: 12, height: 32, borderRadius: 999, backgroundColor: DARK.input, borderWidth: 1, borderColor: DARK.border, alignItems: "center", justifyContent: "center" },
-  chipOn: { backgroundColor: "#7C3AED", borderColor: "#7C3AED" },
+  chipOn: { backgroundColor: "#1F6BFF", borderColor: "#1F6BFF" },
   chipTxt: { color: DARK.sub, fontSize: 13, fontWeight: "600" },
-  saveBtn: { height: 50, borderRadius: RADIUS.md, backgroundColor: "#7C3AED", alignItems: "center", justifyContent: "center", marginTop: SPACING.lg },
+  saveBtn: { height: 50, borderRadius: RADIUS.md, backgroundColor: "#1F6BFF", alignItems: "center", justifyContent: "center", marginTop: SPACING.lg },
   saveTxt: { color: "#fff", fontWeight: "800", fontSize: 15 },
   markRow: { flexDirection: "row", alignItems: "center", gap: SPACING.sm, padding: SPACING.sm, backgroundColor: "rgba(255,255,255,0.04)", borderRadius: RADIUS.md },
   markInput: { width: 76, height: 40, borderRadius: 10, backgroundColor: DARK.input, color: "#fff", textAlign: "center", fontSize: 16, fontWeight: "700", borderWidth: 1, borderColor: DARK.border },

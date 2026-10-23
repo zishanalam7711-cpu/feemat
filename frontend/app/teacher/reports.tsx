@@ -10,8 +10,8 @@ import { api } from "@/src/lib/api";
 import { ProUpgradeModal } from "@/src/components/ProUpgradeModal";
 
 const DARK = {
-  bg: "#120A28",
-  card: "#1E1440",
+  bg: "#071B45",
+  card: "#0E2A63",
   border: "rgba(255,255,255,0.08)",
   text: "#FFFFFF",
   sub: "rgba(255,255,255,0.6)",
@@ -77,8 +77,8 @@ export default function Reports() {
     if (bc.length > 1) out.push({ icon: "calendar", color: "#F59E0B", text: `${bc[0].class} has the lowest attendance (${bc[0].avg}%).` });
     const sj = data.exams?.subjects || [];
     if (sj.length > 1) out.push({ icon: "book", color: "#3B82F6", text: `${sj[0].subject} is the weakest subject (average ${sj[0].avg}%).` });
-    if ((data.attention || []).length > 0) out.push({ icon: "eye", color: "#A855F7", text: `${data.attention.length} students need extra attention.` });
-    if (out.length === 0) out.push({ icon: "sparkles", color: "#A855F7", text: "Everything looks fine for now. Suggestions will appear here as your data grows." });
+    if ((data.attention || []).length > 0) out.push({ icon: "eye", color: "#35A7FF", text: `${data.attention.length} students need extra attention.` });
+    if (out.length === 0) out.push({ icon: "sparkles", color: "#35A7FF", text: "Everything looks fine for now. Suggestions will appear here as your data grows." });
     return out;
   }, [data]);
 
@@ -126,12 +126,12 @@ export default function Reports() {
       <Pressable onPress={() => router.back()} hitSlop={12}><Ionicons name="arrow-back" size={22} color="#fff" /></Pressable>
       <Text style={styles.title}>Reports & Analytics</Text>
       {data ? (
-        <Pressable onPress={shareSummary} hitSlop={10}><Ionicons name="share-social" size={22} color="#A855F7" /></Pressable>
+        <Pressable onPress={shareSummary} hitSlop={10}><Ionicons name="share-social" size={22} color="#35A7FF" /></Pressable>
       ) : <View style={{ width: 22 }} />}
     </View>
   );
 
-  if (loading) return <View style={[styles.center, { backgroundColor: DARK.bg }]}><ActivityIndicator color="#A855F7" /></View>;
+  if (loading) return <View style={[styles.center, { backgroundColor: DARK.bg }]}><ActivityIndicator color="#35A7FF" /></View>;
   if (pro) return (
     <View style={{ flex: 1, backgroundColor: DARK.bg }}>
       {header}
@@ -169,13 +169,13 @@ export default function Reports() {
 
       <ScrollView
         contentContainerStyle={{ padding: SPACING.md, gap: SPACING.md, paddingBottom: SPACING.xxl }}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#A855F7" />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#35A7FF" />}
       >
         {/* ================= OVERVIEW ================= */}
         {tab === "overview" && (
           <>
             <View style={styles.grid}>
-              <Stat icon="people" color="#A855F7" label="Students" value={String(ov.students)} />
+              <Stat icon="people" color="#35A7FF" label="Students" value={String(ov.students)} />
               <Stat icon="cash" color="#10B981" label="Collected this month" value={inr(ov.collected_month)}
                 sub={delta === null ? undefined : `${delta >= 0 ? "▲" : "▼"} ${Math.abs(delta)}% vs last month`} subColor={delta !== null && delta >= 0 ? "#10B981" : "#EF4444"} />
               <Stat icon="hourglass" color="#EF4444" label="Total pending" value={inr(ov.total_due)} />
@@ -249,7 +249,7 @@ export default function Reports() {
                       <Text style={styles.name}>{m}</Text>
                       <Text style={styles.name}>{inr(v)} <Text style={styles.meta}>({Math.round((v / methodTotal) * 100)}%)</Text></Text>
                     </View>
-                    <View style={styles.barBg}><View style={[styles.barFillH, { width: `${(v / methodTotal) * 100}%`, backgroundColor: "#7C3AED" }]} /></View>
+                    <View style={styles.barBg}><View style={[styles.barFillH, { width: `${(v / methodTotal) * 100}%`, backgroundColor: "#1F6BFF" }]} /></View>
                   </View>
                 ))
               )}
@@ -269,12 +269,12 @@ export default function Reports() {
             </Card>
 
             <View style={{ flexDirection: "row", gap: SPACING.sm }}>
-              <Pressable onPress={runReminders} disabled={sending} style={[styles.action, { backgroundColor: "#7C3AED" }, sending && { opacity: 0.6 }]}>
+              <Pressable onPress={runReminders} disabled={sending} style={[styles.action, { backgroundColor: "#1F6BFF" }, sending && { opacity: 0.6 }]}>
                 {sending ? <ActivityIndicator color="#fff" /> : (<><Ionicons name="notifications" size={16} color="#fff" /><Text style={styles.actionTxt}>Remind All</Text></>)}
               </Pressable>
-              <Pressable onPress={shareDefaulters} style={[styles.action, { backgroundColor: "rgba(168,85,247,0.18)" }]}>
-                <Ionicons name="share-social" size={16} color="#A855F7" />
-                <Text style={[styles.actionTxt, { color: "#A855F7" }]}>Share List</Text>
+              <Pressable onPress={shareDefaulters} style={[styles.action, { backgroundColor: "rgba(53,167,255,0.18)" }]}>
+                <Ionicons name="share-social" size={16} color="#35A7FF" />
+                <Text style={[styles.actionTxt, { color: "#35A7FF" }]}>Share List</Text>
               </Pressable>
             </View>
 
@@ -435,10 +435,10 @@ const styles = StyleSheet.create({
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
   header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: SPACING.md, paddingHorizontal: SPACING.lg, paddingBottom: SPACING.sm },
   title: { flex: 1, color: "#fff", fontSize: 20, fontWeight: "800" },
-  retry: { marginTop: SPACING.lg, paddingHorizontal: 20, height: 42, borderRadius: 12, backgroundColor: "#7C3AED", alignItems: "center", justifyContent: "center" },
+  retry: { marginTop: SPACING.lg, paddingHorizontal: 20, height: 42, borderRadius: 12, backgroundColor: "#1F6BFF", alignItems: "center", justifyContent: "center" },
   tabs: { flexDirection: "row", marginHorizontal: SPACING.md, marginBottom: SPACING.xs, backgroundColor: DARK.input, borderRadius: 12, padding: 3 },
   tabBtn: { flex: 1, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center" },
-  tabOn: { backgroundColor: "#7C3AED" },
+  tabOn: { backgroundColor: "#1F6BFF" },
   tabTxt: { color: DARK.sub, fontWeight: "700", fontSize: 12 },
   grid: { flexDirection: "row", flexWrap: "wrap", gap: SPACING.sm },
   stat: { width: "48.5%", flexGrow: 1, padding: SPACING.md, borderRadius: RADIUS.md, backgroundColor: DARK.card, borderWidth: 1, borderColor: DARK.border, gap: 4 },
@@ -457,7 +457,7 @@ const styles = StyleSheet.create({
   chart: { flexDirection: "row", gap: SPACING.sm, marginTop: SPACING.md, height: 180 },
   bar: { flex: 1, alignItems: "center", justifyContent: "flex-end", gap: 4 },
   barTrack: { width: "70%", height: 120, backgroundColor: "rgba(255,255,255,0.06)", borderRadius: 8, justifyContent: "flex-end", overflow: "hidden" },
-  barFill: { backgroundColor: "#7C3AED", borderRadius: 8 },
+  barFill: { backgroundColor: "#1F6BFF", borderRadius: 8 },
   barLbl: { color: DARK.sub, fontSize: 11 },
   barAmt: { color: "#fff", fontSize: 10, fontWeight: "700" },
   listRow: { flexDirection: "row", alignItems: "center", gap: SPACING.sm, paddingVertical: SPACING.sm, borderTopWidth: 1, borderTopColor: DARK.border, marginTop: SPACING.sm },

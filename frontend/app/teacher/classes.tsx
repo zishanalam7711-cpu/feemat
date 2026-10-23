@@ -41,7 +41,7 @@ export default function ClassesScreen() {
     <KeyboardAvoidingView style={{ flex: 1, backgroundColor: COLORS.surfaceSecondary }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
       <View style={[styles.header, { paddingTop: insets.top + SPACING.md }]}>
         <View style={{ flexDirection: "row", alignItems: "center", gap: SPACING.md, marginBottom: SPACING.md }}>
-          <Pressable onPress={() => router.back()} hitSlop={12}><Ionicons name="chevron-back" size={26} color={COLORS.onSurface} /></Pressable>
+          <Pressable onPress={() => router.back()} hitSlop={12}><Ionicons name="chevron-back" size={26} color="#FFFFFF" /></Pressable>
           <Text style={styles.title}>Classes • Batches • Subjects</Text>
         </View>
         <View style={styles.tabs}>
@@ -72,8 +72,8 @@ export default function ClassesScreen() {
 }
 
 const styles = StyleSheet.create({
-  header: { paddingHorizontal: SPACING.lg, paddingBottom: SPACING.md, backgroundColor: COLORS.surface, borderBottomWidth: 1, borderBottomColor: COLORS.divider },
-  title: { fontSize: 18, fontWeight: "800", color: COLORS.onSurface, flex: 1 },
+  header: { paddingHorizontal: SPACING.lg, paddingBottom: SPACING.md, backgroundColor: "#071E4A" },
+  title: { fontSize: 18, fontWeight: "800", color: "#FFFFFF", flex: 1 },
   tabs: { flexDirection: "row", gap: SPACING.sm },
   tab: { flex: 1, paddingVertical: 10, borderRadius: RADIUS.md, backgroundColor: COLORS.surfaceSecondary, alignItems: "center" },
   tabOn: { backgroundColor: COLORS.brand },
