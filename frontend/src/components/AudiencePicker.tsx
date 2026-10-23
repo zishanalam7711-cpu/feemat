@@ -2,12 +2,12 @@ import React, { useMemo, useState } from "react";
 import { View, Text, Pressable, StyleSheet, TextInput } from "react-native";
 
 const D = {
-  card: "#1E1440",
+  card: "#0E2A63",
   border: "rgba(255,255,255,0.08)",
   text: "#FFFFFF",
   sub: "rgba(255,255,255,0.6)",
   input: "rgba(255,255,255,0.07)",
-  brand: "#7C3AED",
+  brand: "#1F6BFF",
 };
 
 export type Audience = {
@@ -155,7 +155,7 @@ const styles = StyleSheet.create({
   chipOn: { backgroundColor: D.brand, borderColor: D.brand },
   chipTxt: { color: D.sub, fontSize: 13, fontWeight: "600" },
   search: { height: 42, borderRadius: 12, backgroundColor: D.input, color: "#fff", paddingHorizontal: 12, fontSize: 14 },
-  link: { color: "#A855F7", fontWeight: "700", fontSize: 13 },
+  link: { color: "#35A7FF", fontWeight: "700", fontSize: 13 },
   hint: { color: D.sub, fontSize: 13 },
   count: { color: "#34D399", fontSize: 12, fontWeight: "700" },
 });

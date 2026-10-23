@@ -11,7 +11,7 @@ export function ProUpgradeModal({ visible, onClose, feature }: { visible: boolea
     <Modal transparent visible={visible} animationType="fade" onRequestClose={onClose}>
       <View style={styles.wrap}>
         <View style={styles.card}>
-          <LinearGradient colors={["#7C3AED", "#EC4899"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.head}>
+          <LinearGradient colors={["#1F6BFF", "#EC4899"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.head}>
             <Ionicons name="rocket" size={40} color="#fff" />
             <Text style={styles.title}>Upgrade to FeeMat Pro</Text>
             <Text style={styles.sub}>{feature ? `“${feature}” is a Pro feature.` : "Unlock the full FeeMat experience."}</Text>
