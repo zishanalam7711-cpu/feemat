@@ -1,63 +1,44 @@
-import { Stack, useRouter, useSegments } from "expo-router";
-import * as SplashScreen from "expo-splash-screen";
-import { useEffect } from "react";
-import { KeyboardAvoidingView, LogBox, Platform } from "react-native";
-import { GestureHandlerRootView } from "react-native-gesture-handler";
-import { SafeAreaProvider } from "react-native-safe-area-context";
-import { StatusBar } from "expo-status-bar";
+import React from "react";
+import { Tabs } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
+import { COLORS } from "@/src/lib/theme";
 
-import { useIconFonts } from "@/src/hooks/use-icon-fonts";
-import { AuthProvider, useAuth } from "@/src/lib/auth";
+const tabBar = {
+  backgroundColor: "#FFFFFF",
+  borderTopWidth: 0,
+  height: 66,
+  paddingBottom: 8,
+  paddingTop: 8,
+  borderTopLeftRadius: 22,
+  borderTopRightRadius: 22,
+  elevation: 14,
+  shadowColor: "#0A3A8C",
+  shadowOpacity: 0.12,
+  shadowRadius: 12,
+  shadowOffset: { width: 0, height: -4 },
+} as const;
 
-LogBox.ignoreAllLogs(true);
-SplashScreen.preventAutoHideAsync();
+const HIDDEN = [
+  "requests", "more", "student/[id]", "subscription", "classes", "homework", "exams", "reports", "announcements",
+  "attendance", "notifications", "add-student", "timetable", "upi", "receipt/[receiptNumber]", "idcard/[id]",
+];
 
-function AuthGate() {
-  const { user, loading } = useAuth();
-  const segments = useSegments();
-  const router = useRouter();
-
-  useEffect(() => {
-    if (loading) return;
-    const seg0 = segments[0] as string | undefined;
-    const inTeacher = seg0 === "teacher";
-    const inStudent = seg0 === "student";
-    const inAuth = seg0 === "(auth)";
-
-    if (!user) {
-      if (inTeacher || inStudent) router.replace("/");
-      return;
-    }
-    if (user.role === "teacher" && (inStudent || inAuth)) {
-      router.replace("/teacher");
-    } else if (user.role === "student" && (inTeacher || inAuth)) {
-      router.replace("/student");
-    }
-  }, [user, loading, segments, router]);
-
-  return <Stack screenOptions={{ headerShown: false, animation: "slide_from_right" }} />;
-}
-
-export default function RootLayout() {
-  const [loaded, error] = useIconFonts();
-
-  useEffect(() => {
-    if (loaded || error) SplashScreen.hideAsync();
-  }, [loaded, error]);
-
-  if (!loaded && !error) return null;
-
+export default function TeacherLayout() {
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
-      <SafeAreaProvider>
-        <AuthProvider>
-          <StatusBar style="light" />
-          {/* Android draws edge-to-edge, so the window no longer resizes for the keyboard: pad it ourselves. */}
-          <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "android" ? "padding" : undefined}>
-            <AuthGate />
-          </KeyboardAvoidingView>
-        </AuthProvider>
-      </SafeAreaProvider>
-    </GestureHandlerRootView>
+    <Tabs
+      screenOptions={{
+        headerShown: false,
+        tabBarActiveTintColor: COLORS.brand,
+        tabBarInactiveTintColor: "#94A3B8",
+        tabBarLabelStyle: { fontSize: 11, fontWeight: "700" },
+        tabBarStyle: tabBar,
+      }}
+    >
+      <Tabs.Screen name="index" options={{ title: "Home", tabBarIcon: ({ color, size }) => <Ionicons name="home" size={size} color={color} /> }} />
+      <Tabs.Screen name="students" options={{ title: "Students", tabBarIcon: ({ color, size }) => <Ionicons name="people" size={size} color={color} /> }} />
+      <Tabs.Screen name="collect" options={{ title: "Payments", tabBarIcon: ({ color, size }) => <Ionicons name="card" size={size} color={color} /> }} />
+      <Tabs.Screen name="profile" options={{ title: "Profile", tabBarIcon: ({ color, size }) => <Ionicons name="person" size={size} color={color} /> }} />
+      {HIDDEN.map((n) => <Tabs.Screen key={n} name={n} options={{ href: null }} />)}
+    </Tabs>
   );
 }
