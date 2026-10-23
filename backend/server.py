@@ -7,6 +7,7 @@ import hmac
 import json
 import logging
 import os
+import re
 import secrets
 import time
 import urllib.request
@@ -1931,6 +1932,245 @@ async def list_announcements_teacher(user: dict = Depends(require_role("teacher"
 
 
 # ---------- student home ----------
+# ---------- UPI payment claims ("I have paid") -- the teacher confirms before a receipt is made ----------
+class PaymentClaimIn(BaseModel):
+    connection_id: str
+    amount: float = Field(gt=0, le=1000000)
+    reference: Optional[str] = Field(default="", max_length=60)
+    note: Optional[str] = Field(default="", max_length=200)
+
+
+class ConfirmClaimIn(BaseModel):
+    amount: Optional[float] = Field(default=None, gt=0, le=1000000)
+
+
+class RejectClaimIn(BaseModel):
+    reason: Optional[str] = Field(default="", max_length=200)
+
+
+@api.post("/student/payment-claims")
+async def create_payment_claim(data: PaymentClaimIn, user: dict = Depends(require_role("student"))):
+    conn = await db.connections.find_one({"id": data.connection_id, "student_user_id": user["id"]})
+    if not conn:
+        raise HTTPException(404, "Teacher connection not found")
+    ref = (data.reference or "").strip()
+    if ref:
+        dup = await db.payment_claims.find_one({
+            "teacher_user_id": conn["teacher_user_id"], "reference": ref, "status": {"$in": ["pending", "confirmed"]},
+        })
+        if dup:
+            raise HTTPException(409, "This reference number was already submitted")
+    pending = await db.payment_claims.count_documents({"connection_id": conn["id"], "status": "pending"})
+    if pending >= 5:
+        raise HTTPException(429, "You already have 5 payments waiting for confirmation. Please wait for your teacher to confirm them.")
+    claim = {
+        "id": str(uuid.uuid4()), "connection_id": conn["id"], "student_user_id": user["id"],
+        "teacher_user_id": conn["teacher_user_id"], "amount": float(data.amount), "reference": ref,
+        "note": (data.note or "").strip(), "status": "pending", "created_at": now_utc().isoformat(),
+    }
+    await db.payment_claims.insert_one(claim)
+    stu = await db.students.find_one({"user_id": user["id"]}) or {}
+    await notify(
+        conn["teacher_user_id"], "Payment to confirm",
+        f"{stu.get('name') or 'A student'} says they paid \u20b9{data.amount:.0f} by UPI" + (f" (ref {ref})" if ref else "") + ". Check your UPI app, then confirm.",
+        "info",
+    )
+    return clean(claim)
+
+
+@api.get("/student/payment-claims")
+async def my_payment_claims(connection_id: Optional[str] = None, user: dict = Depends(require_role("student"))):
+    flt: dict[str, Any] = {"student_user_id": user["id"]}
+    if connection_id:
+        flt["connection_id"] = connection_id
+    return [clean(c) async for c in db.payment_claims.find(flt).sort("created_at", -1).limit(20)]
+
+
+@api.get("/teacher/payment-claims/count")
+async def payment_claims_count(user: dict = Depends(require_role("teacher"))):
+    return {"pending": await db.payment_claims.count_documents({"teacher_user_id": user["id"], "status": "pending"})}
+
+
+@api.get("/teacher/payment-claims")
+async def teacher_payment_claims(status: str = "pending", user: dict = Depends(require_role("teacher"))):
+    flt: dict[str, Any] = {"teacher_user_id": user["id"]}
+    if status != "all":
+        flt["status"] = status
+    claims = [clean(c) async for c in db.payment_claims.find(flt).sort("created_at", -1).limit(100)]
+    uids = list({c["student_user_id"] for c in claims})
+    stu = {s["user_id"]: s async for s in db.students.find({"user_id": {"$in": uids}})}
+    cons = {c["id"]: c async for c in db.connections.find({"id": {"$in": [c["connection_id"] for c in claims]}})}
+    for c in claims:
+        s = stu.get(c["student_user_id"]) or {}
+        c["student_name"] = s.get("name", "")
+        c["phone"] = s.get("phone", "")
+        c["admission_number"] = (cons.get(c["connection_id"]) or {}).get("admission_number", "")
+    return claims
+
+
+async def _load_claim(user_id: str, claim_id: str) -> dict:
+    claim = await db.payment_claims.find_one({"id": claim_id, "teacher_user_id": user_id})
+    if not claim:
+        raise HTTPException(404, "Payment request not found")
+    if claim["status"] != "pending":
+        raise HTTPException(409, f"This payment was already {claim['status']}")
+    return claim
+
+
+@api.post("/teacher/payment-claims/{claim_id}/confirm")
+async def confirm_payment_claim(claim_id: str, data: ConfirmClaimIn, user: dict = Depends(require_role("teacher"))):
+    claim = await _load_claim(user["id"], claim_id)
+    amount = float(data.amount or claim["amount"])
+    # atomically take the claim so a double tap cannot create two receipts
+    taken = await db.payment_claims.find_one_and_update(
+        {"id": claim_id, "status": "pending"}, {"$set": {"status": "confirming"}}
+    )
+    if not taken:
+        raise HTTPException(409, "This payment was already handled")
+    try:
+        note = "UPI payment confirmed by teacher" + (f" (ref {claim['reference']})" if claim.get("reference") else "")
+        res = await add_installment(
+            claim["connection_id"], InstallmentIn(amount=amount, method="UPI", notes=note), user
+        )
+    except Exception:
+        await db.payment_claims.update_one({"id": claim_id}, {"$set": {"status": "pending"}})
+        raise
+    await db.payment_claims.update_one(
+        {"id": claim_id},
+        {"$set": {"status": "confirmed", "confirmed_amount": amount, "receipt_number": res["receipt"]["receipt_number"],
+                  "handled_at": now_utc().isoformat()}},
+    )
+    return res
+
+
+@api.post("/teacher/payment-claims/{claim_id}/reject")
+async def reject_payment_claim(claim_id: str, data: RejectClaimIn, user: dict = Depends(require_role("teacher"))):
+    claim = await _load_claim(user["id"], claim_id)
+    reason = (data.reason or "").strip()
+    await db.payment_claims.update_one(
+        {"id": claim_id, "status": "pending"},
+        {"$set": {"status": "rejected", "reason": reason, "handled_at": now_utc().isoformat()}},
+    )
+    await notify(
+        claim["student_user_id"], "Payment not confirmed",
+        f"Your teacher could not confirm your \u20b9{claim['amount']:.0f} payment." + (f" Reason: {reason}" if reason else " Please contact your teacher."),
+        "warning",
+    )
+    return {"ok": True}
+
+
+# ---------- timetable ----------
+DAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+_HHMM = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
+
+
+class TimetableIn(BaseModel):
+    day: int = Field(ge=0, le=6)  # 0 = Monday ... 6 = Sunday
+    start: str
+    end: str
+    subject: str = Field(min_length=1, max_length=60)
+    class_id: Optional[str] = None
+    batch_id: Optional[str] = None
+    room: Optional[str] = Field(default="", max_length=40)
+    note: Optional[str] = Field(default="", max_length=120)
+
+
+async def _validate_timetable(data: TimetableIn, teacher_uid: str, skip_id: Optional[str] = None) -> None:
+    if not _HHMM.match(data.start) or not _HHMM.match(data.end):
+        raise HTTPException(400, "Time must be in 24-hour HH:MM format, for example 16:30")
+    if data.start >= data.end:
+        raise HTTPException(400, "End time must be after the start time")
+    if data.class_id and not await db.classes.find_one({"id": data.class_id, "teacher_user_id": teacher_uid}):
+        raise HTTPException(400, "Class not found")
+    if data.batch_id and not await db.batches.find_one({"id": data.batch_id, "teacher_user_id": teacher_uid}):
+        raise HTTPException(400, "Batch not found")
+    # one teacher cannot teach two things at the same time
+    async for e in db.timetable.find({"teacher_user_id": teacher_uid, "day": data.day}):
+        if skip_id and e["id"] == skip_id:
+            continue
+        if data.start < e["end"] and e["start"] < data.end:
+            raise HTTPException(409, f"Overlaps with {e['subject']} on {DAY_NAMES[data.day]} ({e['start']}-{e['end']})")
+
+
+async def _timetable_audience(teacher_uid: str, class_id: Optional[str], batch_id: Optional[str]) -> list:
+    out = []
+    async for c in db.connections.find({"teacher_user_id": teacher_uid, "active": {"$ne": False}}):
+        if c.get("managed"):
+            continue
+        if (not class_id and not batch_id) or (class_id and c.get("class_id") == class_id) or (batch_id and c.get("batch_id") == batch_id):
+            out.append(c["student_user_id"])
+    return out
+
+
+@api.get("/teacher/timetable")
+async def teacher_timetable(user: dict = Depends(require_role("teacher"))):
+    items = [clean(e) async for e in db.timetable.find({"teacher_user_id": user["id"]})]
+    items.sort(key=lambda e: (e["day"], e["start"]))
+    return items
+
+
+@api.post("/teacher/timetable")
+async def add_timetable(data: TimetableIn, user: dict = Depends(require_role("teacher"))):
+    await _validate_timetable(data, user["id"])
+    doc = {
+        "id": str(uuid.uuid4()), "teacher_user_id": user["id"], "day": data.day, "start": data.start, "end": data.end,
+        "subject": data.subject.strip(), "class_id": data.class_id, "batch_id": data.batch_id,
+        "room": (data.room or "").strip(), "note": (data.note or "").strip(), "created_at": now_utc().isoformat(),
+    }
+    await db.timetable.insert_one(doc)
+    await notify_many(
+        await _timetable_audience(user["id"], data.class_id, data.batch_id), "Timetable updated",
+        f"New class: {doc['subject']} on {DAY_NAMES[data.day]}, {data.start}-{data.end}.", "info",
+    )
+    return clean(doc)
+
+
+@api.put("/teacher/timetable/{entry_id}")
+async def update_timetable(entry_id: str, data: TimetableIn, user: dict = Depends(require_role("teacher"))):
+    cur = await db.timetable.find_one({"id": entry_id, "teacher_user_id": user["id"]})
+    if not cur:
+        raise HTTPException(404, "Entry not found")
+    await _validate_timetable(data, user["id"], skip_id=entry_id)
+    upd = {"day": data.day, "start": data.start, "end": data.end, "subject": data.subject.strip(),
+           "class_id": data.class_id, "batch_id": data.batch_id, "room": (data.room or "").strip(), "note": (data.note or "").strip()}
+    await db.timetable.update_one({"id": entry_id}, {"$set": upd})
+    await notify_many(
+        await _timetable_audience(user["id"], data.class_id, data.batch_id), "Timetable updated",
+        f"Class changed: {upd['subject']} on {DAY_NAMES[data.day]}, {data.start}-{data.end}.", "info",
+    )
+    return clean(await db.timetable.find_one({"id": entry_id}))
+
+
+@api.delete("/teacher/timetable/{entry_id}")
+async def delete_timetable(entry_id: str, user: dict = Depends(require_role("teacher"))):
+    cur = await db.timetable.find_one({"id": entry_id, "teacher_user_id": user["id"]})
+    if not cur:
+        raise HTTPException(404, "Entry not found")
+    await db.timetable.delete_one({"id": entry_id})
+    await notify_many(
+        await _timetable_audience(user["id"], cur.get("class_id"), cur.get("batch_id")), "Timetable updated",
+        f"Class removed: {cur['subject']} on {DAY_NAMES[cur['day']]}, {cur['start']}-{cur['end']}.", "info",
+    )
+    return {"ok": True}
+
+
+@api.get("/student/timetable")
+async def student_timetable(user: dict = Depends(require_role("student"))):
+    out = []
+    async for c in db.connections.find({"student_user_id": user["id"], "active": {"$ne": False}}):
+        t = await db.teachers.find_one({"user_id": c["teacher_user_id"]}) or {}
+        async for e in db.timetable.find({"teacher_user_id": c["teacher_user_id"]}):
+            general = not e.get("class_id") and not e.get("batch_id")
+            mine = (e.get("class_id") and e.get("class_id") == c.get("class_id")) or (e.get("batch_id") and e.get("batch_id") == c.get("batch_id"))
+            if general or mine:
+                item = clean(e)
+                item["teacher_name"] = t.get("name", "")
+                item["coaching_name"] = t.get("coaching_name", "")
+                out.append(item)
+    out.sort(key=lambda e: (e["day"], e["start"]))
+    return out
+
+
 @api.get("/student/home")
 async def student_home(user: dict = Depends(require_role("student"))):
     student = clean(await db.students.find_one({"user_id": user["id"]})) or {}
