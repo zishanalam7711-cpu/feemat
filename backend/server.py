@@ -82,6 +82,11 @@ async def lifespan(app: FastAPI):
         JWT_SECRET = doc["value"]
         logging.getLogger("feemat").warning("JWT_SECRET env not set: using a random secret stored in the database. Set JWT_SECRET on Render for extra safety.")
     await db.login_attempts.create_index("email", unique=True)
+    try:
+        import ai_routes as _ai_routes
+        await _ai_routes.startup(db)
+    except Exception:
+        logging.getLogger("feemat").exception("AI startup tasks failed (the rest of the API still works)")
     await db.password_resets.create_index("email", unique=True)
     await db.users.create_index("email", unique=True)
     await db.teachers.create_index("teacher_id", unique=True)
@@ -2293,6 +2298,20 @@ async def run_reminders(user: dict = Depends(require_role("teacher"))):
 
 
 # ---------- mount ----------
+# ---------- AI agent (teacher only). All logic lives in ai_*.py; it reuses the functions above ----------
+from types import SimpleNamespace  # noqa: E402
+import ai_routes  # noqa: E402
+
+ai_routes.install(
+    api,
+    SimpleNamespace(
+        db=db, teacher_plan=teacher_plan, notify=notify, net_amount=net_amount, ensure_fee_months=ensure_fee_months,
+        add_installment=add_installment, InstallmentIn=InstallmentIn, create_homework=create_homework, HomeworkIn=HomeworkIn,
+        create_announcement=create_announcement, AnnouncementIn=AnnouncementIn,
+    ),
+    require_role("teacher"),
+)
+
 app.include_router(api)
 app.add_middleware(
     CORSMiddleware,
