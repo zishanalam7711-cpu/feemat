@@ -35,6 +35,13 @@
           "resizeMode": "contain",
           "backgroundColor": "#000000"
         }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow FeeMat to access your photos to attach them for the AI assistant and profile pictures.",
+          "cameraPermission": "Allow FeeMat to use the camera to take class photos and homework photos."
+        }
       ]
     ],
     "experiments": {
