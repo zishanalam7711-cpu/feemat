@@ -35,6 +35,8 @@ const OPTIONS: Opt[] = [
   { label: "UPI Pay", icon: "qr-code", color: "#34D399", route: "/teacher/upi", badge: "claims" },
   { label: "Requests", icon: "mail-unread", color: "#F472B6", route: "/teacher/requests", badge: "requests" },
   { label: "Pro Plan", icon: "rocket", color: "#06B6D4", route: "/teacher/subscription" },
+  { label: "AI Assistant", icon: "sparkles", color: "#6366F1", route: "/teacher/ai" },
+  { label: "AI Attendance", icon: "camera", color: "#14B8A6", route: "/teacher/ai-attendance" },
   { label: "Profile", icon: "person-circle", color: "#6366F1", route: "/teacher/profile" },
 ];
 
@@ -126,6 +128,17 @@ export default function TeacherDashboard() {
             <Ionicons name="chevron-forward" size={18} color="#1F6BFF" />
           </Pressable>
         ) : null}
+
+        <Pressable onPress={() => router.push("/teacher/ai" as any)} testID="ai-card" style={{ marginTop: 14 }}>
+          <LinearGradient colors={["#0B2F78", "#1F6BFF", "#16B5F0"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.aiCard}>
+            <View style={styles.aiIcon}><Ionicons name="sparkles" size={26} color="#fff" /></View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.aiTitle}>AI Assistant</Text>
+              <Text style={styles.aiSub}>Ask about fees and students, upload photos or PDFs, make worksheets, take attendance from a class photo.</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={22} color="#fff" />
+          </LinearGradient>
+        </Pressable>
 
         <View style={styles.grid}>
           <Pressable style={{ flex: 1 }} onPress={() => router.push("/teacher/students" as any)} testID="stat-students">
@@ -230,6 +243,10 @@ const styles = StyleSheet.create({
   planTxt: { color: "#1F6BFF", fontWeight: "800", fontSize: 11 },
   upgrade: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 14, padding: 12, borderRadius: 12, backgroundColor: "#DBEAFE" },
   upgradeTxt: { flex: 1, color: "#1E3A8A", fontSize: 12, fontWeight: "600" },
+  aiCard: { flexDirection: "row", alignItems: "center", gap: 12, borderRadius: 18, padding: 16 },
+  aiIcon: { width: 48, height: 48, borderRadius: 24, backgroundColor: "rgba(255,255,255,0.2)", alignItems: "center", justifyContent: "center" },
+  aiTitle: { color: "#fff", fontSize: 17, fontWeight: "800" },
+  aiSub: { color: "rgba(255,255,255,0.9)", fontSize: 12, lineHeight: 17, marginTop: 2 },
   grid: { flexDirection: "row", gap: 12, marginTop: 14 },
   statBig: { borderRadius: 18, padding: 16, height: 104, justifyContent: "space-between" },
   statBigLbl: { color: "rgba(255,255,255,0.9)", fontSize: 13, fontWeight: "600" },

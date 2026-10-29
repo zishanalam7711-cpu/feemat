@@ -20,7 +20,7 @@ const tabBar = {
 
 const HIDDEN = [
   "requests", "more", "student/[id]", "subscription", "classes", "homework", "exams", "reports", "announcements",
-  "attendance", "notifications", "add-student", "timetable", "upi", "receipt/[receiptNumber]", "idcard/[id]",
+  "attendance", "notifications", "add-student", "timetable", "upi", "ai", "ai-attendance", "receipt/[receiptNumber]", "idcard/[id]",
 ];
 
 export default function TeacherLayout() {
