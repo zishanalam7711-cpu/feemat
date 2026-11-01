@@ -16,13 +16,14 @@ import uuid
 from datetime import datetime, timedelta
 from typing import Any, Optional
 
-from ai_core import (AIError, audit, check_limits, get_file, local_dt, memory_add, memory_delete, memory_get,
+from ai_core import (AIError, audit, check_limits, get_file, local_dt, memory_add, memory_delete, memory_get, power_available,
                      record_event, run_llm, usable_providers)
+import ai_power
 from ai_data import (attendance_day, attendance_month, collected, due_rows, find_class, inr, lang_of, match_students,
                      month_label, norm, norm_class, prev_month, route_deterministic, snapshot)
 
 DATA_WORDS = re.compile(r"\b(fees?|baaki|pending|due|dues|attendance|hazri|student|students|bacche|bachche|payment|receipt|collection|"
-                        r"admission|class \d+|parents?|reminder)\b", re.I)
+                        r"admission|class \d+|parents?|reminder|marks?|result|results|percent|percentage|exam|exams|homework|grade|topper|score)\b", re.I)
 
 MEM_ADD = re.compile(r"^\s*(?:please\s+)?(?:yaad\s*rakh(?:o|na)|remember(?:\s+that)?)\s*[:,\-]?\s*(.+)$", re.I | re.S)
 MEM_CLEAR = re.compile(r"^\s*(?:bhool\s*jao|bhul\s*jao|forget\s+(?:everything|all)|clear\s+(?:my\s+)?memory|delete\s+(?:my\s+)?memory|memory\s+(?:clear|delete))\s*[.!]?\s*$", re.I)
@@ -33,6 +34,7 @@ MEM_SHOW = re.compile(r"^\s*(?:what\s+do\s+you\s+remember|show\s+(?:my\s+)?memor
 READ_TOOLS = {"list_classes", "search_students", "fee_summary", "due_students", "student_fees", "attendance_report"}
 PII_TOOLS = {"search_students", "fee_summary", "due_students", "student_fees", "attendance_report", "propose_payment"}
 WRITE_TOOLS = {"propose_homework", "propose_announcement", "propose_payment"}
+POWER_ONLY = ai_power.POWER_TOOLS  # only usable when the teacher is in Power mode
 
 TOOL_HELP = """Tools (use only when needed, one at a time):
 - list_classes {}                                   -> the teacher's class names
@@ -47,7 +49,7 @@ TOOL_HELP = """Tools (use only when needed, one at a time):
 propose_* tools only PREPARE an action. The teacher must confirm it in the app. Never say it is already done."""
 
 
-def build_system(now: datetime, cfg: dict, memory: list[str], tools_on: bool, pii_tools: bool) -> str:
+def build_system(now: datetime, cfg: dict, memory: list[str], tools_on: bool, pii_tools: bool, power: bool = False) -> str:
     today = local_dt(now, cfg).date().isoformat()
     s = (
         "You are FeeMat AI, the assistant inside the FeeMat fee-management app used by teachers and coaching centres in India. "
@@ -62,6 +64,11 @@ def build_system(now: datetime, cfg: dict, memory: list[str], tools_on: bool, pi
     if tools_on:
         s += "\n\n" + TOOL_HELP + "\nTo use a tool reply with ONLY one JSON object like {\"tool\":\"due_students\",\"args\":{}} and nothing else. " \
                                   "After TOOL_RESULT, answer the teacher in plain text."
+        if power:
+            s += ("\n\n" + ai_power.POWER_TOOL_HELP +
+                  "\nPOWER MODE: you may chain several tools (one per reply) to finish a big job, e.g. check attendance, then percentages, then prepare a notice. "
+                  "Prepare everything the teacher asked for, then give ONE short summary of what you prepared and what the teacher must confirm. "
+                  "Prefer exact numbers from tools; never estimate marks or attendance yourself.")
         if not pii_tools:
             s += "\nIn this mode you CANNOT read student or fee records (tools search_students, fee_summary, due_students, student_fees, " \
                  "attendance_report, propose_payment are unavailable). If asked, say the app can answer such questions directly."
@@ -124,10 +131,14 @@ def _clip(s: Any, n: int) -> str:
     return str(s or "").strip()[:n]
 
 
-async def run_tool(db, deps, cfg: dict, teacher_uid: str, now: datetime, tool: str, args: dict, *, pii_ok: bool) -> dict:
+async def run_tool(db, deps, cfg: dict, teacher_uid: str, now: datetime, tool: str, args: dict, *, pii_ok: bool, power: bool = False) -> dict:
     """Executes ONE tool. Anything unknown or not allowed returns {"error": ...} to the model; nothing raises into the server."""
     if not isinstance(args, dict):
         return {"error": "args must be an object"}
+    if tool in POWER_ONLY:
+        if not (power and pii_ok):
+            return {"error": "This tool needs Power mode (paid private AI)."}
+        return await ai_power.run_power_tool(db, deps, cfg, teacher_uid, now, tool, args, propose_action)
     if tool in PII_TOOLS and not pii_ok:
         return {"error": "Student records are not available in this mode."}
     try:
@@ -247,11 +258,16 @@ async def confirm_action(db, deps, cfg: dict, teacher: dict, action_id: str, now
         raise AIError(409, "This action is already running.", "already_done")
     p = a["payload"]
     try:
-        if a["type"] in ("create_homework", "create_announcement"):
+        power_res = await ai_power.confirm_power_action(db, deps, cfg, teacher, a, now)
+        if power_res is not None:
+            result = power_res
+        elif a["type"] in ("create_homework", "create_announcement"):
             plan = await deps.teacher_plan(uid)
             if plan["plan"] != "pro":
                 raise AIError(402, "Upgrade to Pro to use homework and announcements.", "pro_required")
-        if a["type"] == "create_homework":
+        if power_res is not None:
+            pass
+        elif a["type"] == "create_homework":
             res = await deps.create_homework(deps.HomeworkIn(title=p["title"], description=p.get("description", ""), due_date=p["due_date"],
                                                              target=p["target"], target_id=p.get("target_id")), teacher)
             result = {"homework_id": res.get("id")}
@@ -304,8 +320,9 @@ async def _student_names(db, teacher_uid: str) -> list[str]:
 
 
 async def handle_chat(db, deps, cfg: dict, teacher: dict, now: datetime, *, text: str, conversation_id: Optional[str] = None,
-                      file_ids: Optional[list[str]] = None) -> dict:
+                      file_ids: Optional[list[str]] = None, power: bool = False) -> dict:
     uid = teacher["id"]
+    power_on = bool(power and power_available(cfg))  # Power mode silently falls back to the normal free flow when it is not available
     text = (text or "").strip()
     if not cfg["enabled"]:
         raise AIError(503, "The AI assistant is switched off by the app owner.", "disabled")
@@ -355,7 +372,7 @@ async def handle_chat(db, deps, cfg: dict, teacher: dict, now: datetime, *, text
             return await finish(det["reply"], "database", data=det.get("data"))
 
     # 3) a real AI model
-    await check_limits(db, cfg, uid, now, llm=True)
+    await check_limits(db, cfg, uid, now, llm=True, power=power_on)
     has_img = any(f["kind"] == "image" for f in files)
     pdf_text, pdf_raw = [], []
     for f in files:
@@ -377,29 +394,30 @@ async def handle_chat(db, deps, cfg: dict, teacher: dict, now: datetime, *, text
         history = history[:-1]  # the current message is added below with its attachments
 
     private, _ = await usable_providers(db, cfg, now, need_vision=bool(images), need_pdf=need_pdf, need_private=True)
-    pii_ok = bool(private) and bool(DATA_WORDS.search(text))
+    pii_ok = bool(private) and (power_on or bool(DATA_WORDS.search(text)))
     tools_on = True
     messages = history + [{"role": "user", "content": user_text}]
     actions: list[dict] = []
     final = ""
     provider = ""
     tier = ""
-    for step in range(4):
-        system = build_system(now, cfg, memory_items, tools_on, pii_ok)
+    steps = cfg["power_agent_steps"] if power_on else 4
+    for step in range(steps):
+        system = build_system(now, cfg, memory_items, tools_on, pii_ok, power_on)
         out = await run_llm(db, cfg, uid, now, system, messages, images if step == 0 else [], need_vision=bool(images) and step == 0,
-                            need_pdf=need_pdf and step == 0, need_private=pii_ok, note="chat")
+                            need_pdf=need_pdf and step == 0, need_private=pii_ok, note="chat", power=power_on)
         provider, tier = out["provider"], out["tier"]
-        call = parse_tool_call(out["text"]) if tools_on and step < 3 else None
+        call = parse_tool_call(out["text"]) if tools_on and step < steps - 1 else None
         if not call:
             final = out["text"].strip()
             break
-        res = await run_tool(db, deps, cfg, uid, now, call["tool"], call["args"], pii_ok=pii_ok)
+        res = await run_tool(db, deps, cfg, uid, now, call["tool"], call["args"], pii_ok=pii_ok, power=power_on)
         if res.get("proposed") and res.get("action_id"):
             a = await db.ai_actions.find_one({"id": res["action_id"], "teacher_user_id": uid})
             if a:
                 actions.append(public_action(a))
         messages.append({"role": "assistant", "content": out["text"][:1500]})
-        messages.append({"role": "user", "content": "TOOL_RESULT: " + json.dumps(res, ensure_ascii=False)[:3500]})
+        messages.append({"role": "user", "content": "TOOL_RESULT: " + json.dumps(res, ensure_ascii=False)[:(7000 if power_on else 3500)]})
     if not final:
         final = "I could not finish that. Please try again with a simpler request."
     note = None
@@ -407,4 +425,4 @@ async def handle_chat(db, deps, cfg: dict, teacher: dict, now: datetime, *, text
         priv = next((p for p in cfg["providers"] if p["name"] == provider), None)
         if priv and not priv["private"]:
             note = "Your file was processed by a free AI service that may use it to improve its products. Do not upload students' personal details."
-    return await finish(final, "ai", actions=actions or None, provider=provider, privacy_note=note)
+    return await finish(final, "power" if power_on else "ai", actions=actions or None, provider=provider, privacy_note=note)

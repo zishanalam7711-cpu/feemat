@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field
 import ai_agent
 import ai_attendance
 import ai_core
+import ai_power
 from ai_core import AIError
 
 
@@ -18,6 +19,16 @@ class ChatIn(BaseModel):
     message: str = Field(default="", max_length=20000)
     conversation_id: Optional[str] = None
     file_ids: List[str] = []
+    power: bool = False
+
+
+class CheckWorkIn(BaseModel):
+    kind: str = Field(default="homework", max_length=12)          # "homework" or "paper" (answer sheet)
+    file_ids: List[str] = []
+    student_name: str = Field(default="", max_length=80)
+    exam_title: str = Field(default="", max_length=100)
+    out_of: Optional[float] = None
+    instructions: str = Field(default="", max_length=3000)
 
 
 class FileIn(BaseModel):
@@ -72,7 +83,7 @@ async def startup(db) -> None:
     try:
         for col, field, unique in [("ai_events", "teacher_user_id", False), ("ai_files", "id", True), ("ai_conversations", "teacher_user_id", False),
                                    ("ai_messages", "conversation_id", False), ("ai_memory", "teacher_user_id", True), ("ai_actions", "id", True),
-                                   ("ai_att_sessions", "id", True), ("ai_audit", "teacher_user_id", False)]:
+                                   ("ai_att_sessions", "id", True), ("ai_audit", "teacher_user_id", False), ("ai_checks", "teacher_user_id", False)]:
             await db[col].create_index(field, unique=unique)
         now = datetime.now(timezone.utc)
         await ai_core.purge_expired(db, now)
@@ -117,7 +128,17 @@ def install(api, deps, require_teacher) -> None:
     @api.post("/ai/chat")
     async def ai_chat(data: ChatIn, user: dict = Depends(teacher)):
         try:
-            return await ai_agent.handle_chat(db, deps, cfg, user, now(), text=data.message, conversation_id=data.conversation_id, file_ids=data.file_ids)
+            return await ai_agent.handle_chat(db, deps, cfg, user, now(), text=data.message, conversation_id=data.conversation_id, file_ids=data.file_ids, power=data.power)
+        except AIError as e:
+            raise _http(e)
+
+    @api.post("/ai/check-work")
+    async def ai_check_work(data: CheckWorkIn, user: dict = Depends(teacher)):
+        """AI checks a photo/PDF of homework or an answer sheet. Needs Power mode. Nothing is saved until the teacher confirms."""
+        try:
+            await ai_core.check_limits(db, cfg, user["id"], now(), llm=True, power=True)
+            return await ai_power.check_work(db, deps, cfg, user, now(), kind=data.kind, file_ids=data.file_ids, student_name=data.student_name,
+                                             exam_title=data.exam_title, out_of=data.out_of, instructions=data.instructions)
         except AIError as e:
             raise _http(e)
 
@@ -200,7 +221,7 @@ def install(api, deps, require_teacher) -> None:
     async def ai_delete_everything(user: dict = Depends(teacher)):
         """Deletes this teacher's AI chats, files, memory and pending actions."""
         uid = user["id"]
-        for col in ("ai_messages", "ai_conversations", "ai_files", "ai_actions", "ai_att_sessions"):
+        for col in ("ai_messages", "ai_conversations", "ai_files", "ai_actions", "ai_att_sessions", "ai_checks"):
             async for d in db[col].find({"teacher_user_id": uid}):
                 await db[col].delete_one({"id": d["id"]})
         await db.ai_memory.delete_one({"teacher_user_id": uid})

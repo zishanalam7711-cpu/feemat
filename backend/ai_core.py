@@ -109,6 +109,13 @@ def load_config(env: Optional[dict] = None) -> dict:
         "max_pdf_mb": _num(e.get("AI_MAX_PDF_MB"), 8),
         "storage_mb_per_teacher": _num(e.get("AI_STORAGE_MB_PER_TEACHER"), 60),
         "max_memory_items": 30,
+        # ---- Power mode (paid AI does the heavy work). Off unless the owner sets AI_PAID_ENABLED + a budget.
+        "power_max_output_tokens": int(_num(e.get("AI_POWER_MAX_OUTPUT_TOKENS"), 2500)),
+        "power_agent_steps": int(_num(e.get("AI_POWER_AGENT_STEPS"), 8)),
+        "power_timeout": _num(e.get("AI_POWER_TIMEOUT_SEC"), 90),
+        "power_daily_limit_per_teacher": int(_num(e.get("AI_POWER_DAILY_LIMIT_PER_TEACHER"), 60)),
+        "power_default_on": _bool(e.get("AI_POWER_DEFAULT_ON"), False),
+        "max_bulk_students": int(_num(e.get("AI_MAX_BULK_STUDENTS"), 60)),
     }
 
 
@@ -122,10 +129,18 @@ def public_status(cfg: dict) -> dict:
             for p in cfg["providers"]
         ],
         "paid_enabled": cfg["paid_enabled"],
+        "power_available": power_available(cfg),
+        "power_default_on": cfg.get("power_default_on", False),
         "face_match_enabled": cfg["face_match_enabled"],
         "limits": {"per_day": cfg["per_teacher_daily"], "per_minute": cfg["per_teacher_minute"],
                    "max_input_chars": cfg["max_input_chars"]},
     }
+
+
+def power_available(cfg: dict) -> bool:
+    """Power mode needs: paid AI switched on, a monthly budget > 0 and a configured PRIVATE paid provider."""
+    return bool(cfg["paid_enabled"] and cfg["monthly_budget_usd"] > 0
+                and any(p["tier"] == "paid" and p["configured"] and p["private"] for p in cfg["providers"]))
 
 
 # ------------------------------------------------------------------ routing policy: free first, paid only with permission
@@ -295,7 +310,7 @@ async def record_event(db, teacher_uid: str, now: datetime, kind: str, *, provid
     })
 
 
-async def check_limits(db, cfg: dict, teacher_uid: str, now: datetime, *, llm: bool) -> None:
+async def check_limits(db, cfg: dict, teacher_uid: str, now: datetime, *, llm: bool, power: bool = False) -> None:
     """Abuse protection. Cheap non-AI answers get a generous limit; AI calls get the strict ones."""
     minute_ago = (now - timedelta(minutes=1)).isoformat()
     any_recent = await db.ai_events.count_documents({"teacher_user_id": teacher_uid, "ts": {"$gte": minute_ago}})
@@ -304,12 +319,15 @@ async def check_limits(db, cfg: dict, teacher_uid: str, now: datetime, *, llm: b
     if not llm:
         return
     llm_recent = await db.ai_events.count_documents({"teacher_user_id": teacher_uid, "kind": "llm", "ts": {"$gte": minute_ago}})
-    if llm_recent >= cfg["per_teacher_minute"]:
+    # Power mode runs several model steps per message (tool calls), so it gets a bigger per-minute allowance
+    minute_cap = cfg["per_teacher_minute"] * 3 if power else cfg["per_teacher_minute"]
+    day_cap = max(cfg["per_teacher_daily"], cfg["power_daily_limit_per_teacher"]) if power else cfg["per_teacher_daily"]
+    if llm_recent >= minute_cap:
         raise AIError(429, "You are sending AI requests too fast. Please wait a minute.", "rate_limit")
     day_start = local_dt(now, cfg).replace(hour=0, minute=0, second=0, microsecond=0).astimezone(timezone.utc).isoformat()
     today = await db.ai_events.count_documents({"teacher_user_id": teacher_uid, "kind": "llm", "ts": {"$gte": day_start}})
-    if today >= cfg["per_teacher_daily"]:
-        raise AIError(429, f"You have reached today's AI limit ({cfg['per_teacher_daily']} requests). It resets tomorrow. "
+    if today >= day_cap:
+        raise AIError(429, f"You have reached today's AI limit ({day_cap} requests). It resets tomorrow. "
                            "Fee, due and attendance questions still work.", "daily_limit")
 
 
@@ -331,7 +349,7 @@ def estimate_cost(p: dict, tokens_in: int, tokens_out: int) -> float:
 
 
 async def usable_providers(db, cfg: dict, now: datetime, *, need_vision=False, need_pdf=False, need_private=False,
-                           input_chars: int = 0) -> tuple[list[dict], dict]:
+                           input_chars: int = 0, paid_first: bool = False, out_tokens: int = 0) -> tuple[list[dict], dict]:
     """Applies free caps and the paid budget on top of select_providers(). Returns (providers, info)."""
     info = {"free_exhausted": False, "budget_blocked": False}
     chosen = []
@@ -343,19 +361,27 @@ async def usable_providers(db, cfg: dict, now: datetime, *, need_vision=False, n
                 continue
             chosen.append(p)
         else:
-            worst = estimate_cost(p, max(input_chars // 3, 500), cfg["max_output_tokens"])
+            worst = estimate_cost(p, max(input_chars // 3, 500), out_tokens or cfg["max_output_tokens"])
             if cfg["monthly_budget_usd"] <= 0 or spend + worst > cfg["monthly_budget_usd"]:
                 info["budget_blocked"] = True
                 continue
             chosen.append(p)
+    if paid_first:  # Power mode: the good (paid) model goes first, free ones stay as a fallback
+        chosen.sort(key=lambda p: 0 if p["tier"] == "paid" else 1)
     return chosen, info
 
 
 async def run_llm(db, cfg: dict, teacher_uid: str, now: datetime, system: str, messages: list[dict], images: list[dict], *,
-                  need_vision=False, need_pdf=False, need_private=False, note: str = "") -> dict:
+                  need_vision=False, need_pdf=False, need_private=False, note: str = "", power: bool = False) -> dict:
     """Tries free providers first, then paid ones only if AI_PAID_ENABLED and the budget allows. Records usage."""
     chars = len(system) + sum(len(m["content"] or "") for m in messages)
-    provs, info = await usable_providers(db, cfg, now, need_vision=need_vision, need_pdf=need_pdf, need_private=need_private, input_chars=chars)
+    power = bool(power and power_available(cfg))
+    out_tokens = cfg["power_max_output_tokens"] if power else cfg["max_output_tokens"]
+    timeout = cfg["power_timeout"] if power else cfg["timeout"]
+    if power:  # Power mode only ever uses the private paid provider(s); a free provider never sees power-mode data
+        need_private = True
+    provs, info = await usable_providers(db, cfg, now, need_vision=need_vision, need_pdf=need_pdf, need_private=need_private, input_chars=chars,
+                                         paid_first=power, out_tokens=out_tokens)
     if not provs:
         if info["budget_blocked"] and not info["free_exhausted"] and cfg["paid_enabled"]:
             raise AIError(503, "The monthly AI budget is used up, so paid AI is paused. Ask the app owner to raise the budget.", "budget")
@@ -365,7 +391,7 @@ async def run_llm(db, cfg: dict, teacher_uid: str, now: datetime, system: str, m
     last: Optional[AIError] = None
     for p in provs:
         try:
-            r = await call_provider(p, system, messages, images, cfg["max_output_tokens"], cfg["timeout"])
+            r = await call_provider(p, system, messages, images, out_tokens, timeout)
         except AIError as e:
             last = e
             await record_event(db, teacher_uid, now, "llm", provider=p["name"], tier=p["tier"], ok=False, note=e.code)
