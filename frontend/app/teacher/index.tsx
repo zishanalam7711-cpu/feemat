@@ -7,6 +7,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { GRAD, inr } from "@/src/lib/theme";
 import { api } from "@/src/lib/api";
 import { Avatar } from "@/src/components/Avatar";
+import { AIRobotBadge } from "@/src/components/AIRobot";
 import { GradientBg, Logo, StatusPill } from "@/src/components/ui";
 
 type Opt = {
@@ -131,10 +132,10 @@ export default function TeacherDashboard() {
 
         <Pressable onPress={() => router.push("/teacher/ai" as any)} testID="ai-card" style={{ marginTop: 14 }}>
           <LinearGradient colors={["#0B2F78", "#1F6BFF", "#16B5F0"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.aiCard}>
-            <View style={styles.aiIcon}><Ionicons name="sparkles" size={26} color="#fff" /></View>
+            <AIRobotBadge size={56} />
             <View style={{ flex: 1 }}>
-              <Text style={styles.aiTitle}>AI Assistant</Text>
-              <Text style={styles.aiSub}>Ask about fees and students, upload photos or PDFs, make worksheets, take attendance from a class photo.</Text>
+              <Text style={styles.aiTitle}>FeeMat AI</Text>
+              <Text style={styles.aiSub}>Attendance, homework and answer-sheet checking, results and percentages, fees, notices and worksheets. Ask anything.</Text>
             </View>
             <Ionicons name="chevron-forward" size={22} color="#fff" />
           </LinearGradient>

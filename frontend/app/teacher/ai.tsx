@@ -11,6 +11,9 @@ import { pickAndUploadImage, pickAndUploadPdf, Uploaded } from "@/src/lib/aiFile
 import { GradientBg, Logo } from "@/src/components/ui";
 import { InlineOverlay } from "@/src/components/InlineOverlay";
 import { RichText } from "@/src/components/RichText";
+import { AIRobot } from "@/src/components/AIRobot";
+import { AICheckWork } from "@/src/components/AICheckWork";
+import { storage } from "@/src/utils/storage";
 
 type Msg = {
   id: string; role: "user" | "assistant" | "error"; content: string; data?: any; actions?: any[]; provider?: string;
@@ -24,6 +27,15 @@ const SUGGESTIONS = [
   "Make a 10 question maths quiz for class 8",
   "Draft a fee reminder for parents",
   "Write a simple lesson plan on fractions",
+];
+
+const POWER_SUGGESTIONS = [
+  "Class 8 ka poora check karo: attendance, result aur fees",
+  "Last exam ka result aur percentage nikalo",
+  "Aaj kaun absent hai aur kiski attendance mark nahi hui?",
+  "Weak students ki list banao (marks ya attendance kam)",
+  "Is hafte ka homework status batao",
+  "Class 9 ke liye notice likho aur bhejne ke liye taiyar karo",
 ];
 
 const waNumber = (p?: string) => {
@@ -52,8 +64,18 @@ export default function AiChat() {
   const [speakingId, setSpeakingId] = useState<string | null>(null);
   const [autoSpeak, setAutoSpeak] = useState(false);
   const [actionState, setActionState] = useState<Record<string, { st: string; text?: string }>>({});
+  const [power, setPower] = useState(false);
+  const [showCheck, setShowCheck] = useState(false);
 
-  const loadStatus = useCallback(async () => { try { setStatus(await api("/ai/status")); } catch (e: any) { setStatus({ error: e?.message || "AI is not available." }); } }, []);
+  const loadStatus = useCallback(async () => {
+    try {
+      const st: any = await api("/ai/status");
+      setStatus(st);
+      const saved = await storage.getItem("ai_power_mode", !!st?.power_default_on);
+      setPower(!!(st?.power_available && saved));
+    } catch (e: any) { setStatus({ error: e?.message || "AI is not available." }); }
+  }, []);
+  const togglePower = async (v: boolean) => { setPower(v); await storage.setItem("ai_power_mode", v); };
   useFocusEffect(useCallback(() => { loadStatus(); return () => { Speech.stop(); }; }, [loadStatus]));
   useEffect(() => { setTimeout(() => scroller.current?.scrollToEnd({ animated: true }), 80); }, [msgs.length, busy]);
 
@@ -74,7 +96,7 @@ export default function AiChat() {
     else setMsgs((m) => m.filter((x) => x.role !== "error"));
     setBusy(true);
     try {
-      const res: any = await api("/ai/chat", { method: "POST", body: { message: text, conversation_id: convId, file_ids: fileIds } });
+      const res: any = await api("/ai/chat", { method: "POST", body: { message: text, conversation_id: convId, file_ids: fileIds, power: power && !!status?.power_available } });
       setConvId(res.conversation_id);
       const a = res.message;
       setMsgs((m) => [...m, { id: a.id, role: "assistant", content: a.content, data: a.data, actions: a.actions, provider: a.provider, privacy_note: a.privacy_note, routed: a.routed }]);
@@ -136,14 +158,17 @@ export default function AiChat() {
 
   const ready = status && !status.error && status.ready;
   const private_ = status?.providers?.some((p: any) => p.configured && p.private);
+  const powerReady = !!status?.power_available;
+  const powerOn = power && powerReady;
 
   return (
     <GradientBg>
       <View style={[styles.top, { paddingTop: insets.top + 8 }]}>
         <Pressable onPress={() => router.back()} hitSlop={12}><Ionicons name="arrow-back" size={26} color="#fff" /></Pressable>
-        <View style={{ flex: 1, marginLeft: 12 }}>
-          <Text style={styles.title}>AI Assistant</Text>
-          <Text style={styles.sub}>{!status ? "Checking..." : status.error ? "Not available" : ready ? (private_ ? "Private AI ready" : "Free AI ready") : "Not set up yet"}</Text>
+        <View style={styles.robotHead}><AIRobot size={40} mood={busy ? "thinking" : "happy"} /></View>
+        <View style={{ flex: 1, marginLeft: 4 }}>
+          <Text style={styles.title}>FeeMat AI</Text>
+          <Text style={styles.sub}>{!status ? "Checking..." : status.error ? "Not available" : ready ? (powerOn ? "⚡ Power mode ON" : private_ ? "Private AI ready" : "Free AI ready") : "Not set up yet"}</Text>
         </View>
         <Pressable onPress={() => router.push("/teacher/ai-attendance" as any)} hitSlop={8} style={styles.icoBtn}><Ionicons name="camera" size={20} color="#fff" /></Pressable>
         <Pressable onPress={openHistory} hitSlop={8} style={styles.icoBtn}><Ionicons name="time" size={20} color="#fff" /></Pressable>
@@ -151,10 +176,19 @@ export default function AiChat() {
       </View>
 
       <View style={styles.panel}>
+        <View style={styles.powerBar}>
+          <Ionicons name="flash" size={16} color={powerOn ? "#F59E0B" : "#94A3B8"} />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.powerTitle}>Power mode</Text>
+            <Text style={styles.powerSub}>{powerReady ? (powerOn ? "Paid private AI does the big jobs" : "Turn on for results, checking and bulk work") : "Needs paid AI (owner setup)"}</Text>
+          </View>
+          <Switch value={powerOn} onValueChange={togglePower} disabled={!powerReady} />
+          <Pressable onPress={() => setShowCheck(true)} style={styles.checkBtn} testID="ai-check-work"><Ionicons name="checkmark-done" size={16} color="#fff" /><Text style={styles.checkTxt}>Check work</Text></Pressable>
+        </View>
         <ScrollView ref={scroller} contentContainerStyle={{ padding: 14, paddingBottom: 20, gap: 12 }} keyboardShouldPersistTaps="handled">
           {msgs.length === 0 ? (
             <View style={{ alignItems: "center", paddingTop: 10 }}>
-              <Logo size={84} tagline={false} />
+              <AIRobot size={118} />
               <Text style={styles.hello}>How can I help today?</Text>
               <Text style={styles.helloSub}>Ask about fees and students, upload a photo or PDF, or ask me to write a worksheet, notice or lesson plan. Hindi, Hinglish and English all work.</Text>
               {status?.error || (status && !status.ready) ? (
@@ -163,7 +197,7 @@ export default function AiChat() {
                 </Text></View>
               ) : null}
               <View style={styles.chips}>
-                {SUGGESTIONS.map((s) => (
+                {(powerOn ? POWER_SUGGESTIONS : SUGGESTIONS).map((s) => (
                   <Pressable key={s} style={styles.chip} onPress={() => send({ text: s, files: [] })}><Text style={styles.chipTxt}>{s}</Text></Pressable>
                 ))}
               </View>
@@ -186,6 +220,10 @@ export default function AiChat() {
                 </View>
               ) : (
                 <View style={styles.aiWrap}>
+                  <View style={styles.avatarRow}>
+                    <AIRobot size={30} animated={false} />
+                    <Text style={styles.avatarName}>FeeMat AI{m.routed === "power" ? "  ⚡" : ""}</Text>
+                  </View>
                   <View style={styles.aiBub}>
                     <RichText text={m.content} />
                     {m.data?.table ? <TableCard t={m.data.table} /> : null}
@@ -194,14 +232,14 @@ export default function AiChat() {
                   {(m.actions || []).map((a) => <ActionCard key={a.id} a={a} st={actionState[a.id]} onAct={act} />)}
                   {m.privacy_note ? <Text style={styles.priv}>{m.privacy_note}</Text> : null}
                   <View style={styles.metaRow}>
-                    <Text style={styles.meta}>{m.routed === "database" ? "Exact answer from your records, no AI used" : m.provider ? `AI: ${m.provider}` : ""}</Text>
+                    <Text style={styles.meta}>{m.routed === "database" ? "Exact answer from your records, no AI used" : m.routed === "power" ? `⚡ Power mode · ${m.provider || "AI"}` : m.provider ? `AI: ${m.provider}` : ""}</Text>
                     <Pressable onPress={() => speak(m)} hitSlop={8}><Ionicons name={speakingId === m.id ? "stop-circle" : "volume-high"} size={18} color="#1F6BFF" /></Pressable>
                   </View>
                 </View>
               )}
             </View>
           ))}
-          {busy ? <View style={styles.aiBub}><View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}><ActivityIndicator color="#1F6BFF" /><Text style={{ color: "#64748B" }}>Thinking...</Text></View></View> : null}
+          {busy ? <View style={styles.aiBub}><View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}><AIRobot size={34} mood="thinking" /><Text style={{ color: "#64748B" }}>{powerOn ? "Working on it (this can take a little longer)..." : "Thinking..."}</Text></View></View> : null}
         </ScrollView>
 
         <View style={[styles.composerWrap, { paddingBottom: insets.bottom + 8 }]}>
@@ -322,6 +360,7 @@ export default function AiChat() {
           </View>
         </View>
       </InlineOverlay>
+      <AICheckWork visible={showCheck} onClose={() => setShowCheck(false)} bottomInset={insets.bottom} powerReady={powerReady} />
     </GradientBg>
   );
 }
@@ -381,6 +420,14 @@ function ActionCard({ a, st, onAct }: { a: any; st?: { st: string; text?: string
 }
 
 const styles = StyleSheet.create({
+  robotHead: { width: 46, height: 46, borderRadius: 23, backgroundColor: "rgba(255,255,255,0.16)", alignItems: "center", justifyContent: "center", marginLeft: 8 },
+  powerBar: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 14, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: "#E8EFFB", backgroundColor: "#fff" },
+  powerTitle: { color: "#0F172A", fontWeight: "800", fontSize: 13 },
+  powerSub: { color: "#64748B", fontSize: 11 },
+  checkBtn: { flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: "#1F6BFF", borderRadius: 14, paddingHorizontal: 11, height: 34 },
+  checkTxt: { color: "#fff", fontWeight: "800", fontSize: 12 },
+  avatarRow: { flexDirection: "row", alignItems: "center", gap: 6 },
+  avatarName: { color: "#64748B", fontSize: 12, fontWeight: "800" },
   top: { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingBottom: 12, gap: 8 },
   title: { color: "#fff", fontSize: 18, fontWeight: "800" },
   sub: { color: "#7FD3FF", fontSize: 12, marginTop: 1 },
