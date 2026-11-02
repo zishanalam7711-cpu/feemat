@@ -9,6 +9,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { SPACING, RADIUS } from "@/src/lib/theme";
 import { api } from "@/src/lib/api";
 import { ProUpgradeModal } from "@/src/components/ProUpgradeModal";
+import { HomeworkSubmissions } from "@/src/components/HomeworkSubmissions";
 import {
   AudiencePicker, Audience, EVERYONE, audienceBody, audienceLabel, audienceValid,
 } from "@/src/components/AudiencePicker";
@@ -57,6 +58,9 @@ export default function Homework() {
   const [show, setShow] = useState(false);
   const [pro, setPro] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [counts, setCounts] = useState<Record<string, any>>({});
+  const [subFor, setSubFor] = useState<any>(null);
+  const loadCounts = useCallback(async () => { try { setCounts(await api("/teacher/homework/submission-counts")); } catch {} }, []);
 
   const [title, setTitle] = useState("");
   const [desc, setDesc] = useState("");
@@ -72,9 +76,10 @@ export default function Homework() {
         api("/teacher/students?filter=all&limit=200").catch(() => ({ items: [] })),
       ]);
       setItems(h || []); setClasses(c || []); setBatches(b || []); setStudents(s.items || []);
+      loadCounts();
     } catch {}
     setLoading(false);
-  }, []);
+  }, [loadCounts]);
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
   const list = useMemo(() => {
@@ -155,6 +160,17 @@ export default function Homework() {
                   <Ionicons name="people" size={12} color={DARK.sub} />
                   <Text style={styles.meta}>{audienceLabel(h, classes, batches)}</Text>
                 </View>
+                {(() => {
+                  const c = counts[h.id];
+                  const sent = c?.sent ?? 0, fresh = c?.submitted ?? 0;
+                  return (
+                    <Pressable onPress={() => setSubFor(h)} testID={`hw-subs-${h.id}`} style={styles.subsBtn}>
+                      <Ionicons name="albums-outline" size={16} color="#fff" />
+                      <Text style={styles.subsTxt}>Submissions{c ? `  ${sent}/${c.total}` : ""}</Text>
+                      {fresh > 0 ? <View style={styles.newDot}><Text style={styles.newDotTxt}>{fresh} new</Text></View> : null}
+                    </Pressable>
+                  );
+                })()}
               </View>
             );
           })}
@@ -202,6 +218,7 @@ export default function Homework() {
         </View>
       </InlineOverlay>
       <ProUpgradeModal visible={pro} onClose={() => setPro(false)} feature="Homework" />
+      <HomeworkSubmissions visible={!!subFor} homework={subFor} onClose={() => setSubFor(null)} bottomInset={insets.bottom} onChanged={loadCounts} />
     </View>
   );
 }
@@ -223,6 +240,10 @@ const styles = StyleSheet.create({
   body: { color: "rgba(255,255,255,0.75)", lineHeight: 19, marginTop: 4 },
   badge: { paddingHorizontal: 10, height: 26, borderRadius: 13, alignItems: "center", justifyContent: "center" },
   badgeTxt: { fontSize: 11, fontWeight: "800" },
+  subsBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, height: 40, borderRadius: 12, backgroundColor: "rgba(31,107,255,0.35)", marginTop: 4 },
+  subsTxt: { color: "#fff", fontWeight: "800", fontSize: 13 },
+  newDot: { backgroundColor: "#EF4444", borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2 },
+  newDotTxt: { color: "#fff", fontSize: 10, fontWeight: "800" },
   metaRow: { flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" },
   meta: { color: DARK.sub, fontSize: 11 },
   overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "flex-end" },
