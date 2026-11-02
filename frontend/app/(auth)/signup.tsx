@@ -1,9 +1,10 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { View, Text, StyleSheet, ScrollView, Pressable, KeyboardAvoidingView, Platform, Alert } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "@/src/lib/auth";
+import { api } from "@/src/lib/api";
 import { GradientBg, Logo, GradBtn, AuthField } from "@/src/components/ui";
 
 export default function SignupScreen() {
@@ -21,6 +22,25 @@ export default function SignupScreen() {
   const [code, setCode] = useState("");
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [otp, setOtp] = useState("");
+  const [otpSent, setOtpSent] = useState(false);
+  const [info, setInfo] = useState<string | null>(null);
+  const [cooldown, setCooldown] = useState(0);
+
+  useEffect(() => {
+    if (cooldown <= 0) return;
+    const t = setTimeout(() => setCooldown((c) => c - 1), 1000);
+    return () => clearTimeout(t);
+  }, [cooldown]);
+
+  // Step 1: ask the server to e-mail an OTP. Returns true when the OTP step can be skipped (switched off on the server).
+  const sendOtp = async (): Promise<boolean> => {
+    const r: any = await api("/auth/signup-otp", { method: "POST", body: { email: email.trim().toLowerCase() }, auth: false });
+    if (r?.skipped) return true;
+    setOtpSent(true); setOtp(""); setCooldown(r?.resend_in || 60);
+    setInfo(r?.message || "OTP sent to your email.");
+    return false;
+  };
 
   const onSubmit = async () => {
     setErr(null);
@@ -30,7 +50,13 @@ export default function SignupScreen() {
     if (password !== confirm) return setErr("The two passwords do not match");
     setLoading(true);
     try {
-      const u: any = await signUp(email.trim().toLowerCase(), password, name.trim(), role, role === "student" ? code.trim() : undefined);
+      if (!otpSent) {
+        const skip = await sendOtp();
+        if (!skip) return;
+      } else if (!/^\d{6}$/.test(otp.trim())) {
+        return setErr("Enter the 6-digit OTP from your email");
+      }
+      const u: any = await signUp(email.trim().toLowerCase(), password, name.trim(), role, role === "student" ? code.trim() : undefined, otpSent ? otp.trim() : undefined);
       if (role === "student" && code.trim()) {
         if (u?.claimed) Alert.alert("Record linked 🎉", "The fees, attendance and marks your teacher entered are now in your account.");
         else Alert.alert("Code not used", (u?.claim_error || "The code was incorrect") + "\n\nYour account was created. You can try the code again later from the Home screen (\"Teacher code\").");
@@ -70,7 +96,7 @@ export default function SignupScreen() {
 
             <View style={{ gap: 12, marginTop: 16 }}>
               <AuthField dark testID="signup-name-input" icon="person-outline" placeholder="Full Name" value={name} onChangeText={setName} />
-              <AuthField dark testID="signup-email-input" icon="mail-outline" placeholder="Email" value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" />
+              <AuthField dark testID="signup-email-input" icon="mail-outline" placeholder="Email" value={email} onChangeText={(v: string) => { setEmail(v); if (otpSent) { setOtpSent(false); setOtp(""); setInfo(null); } }} autoCapitalize="none" keyboardType="email-address" />
               <AuthField dark testID="signup-password-input" icon="lock-closed-outline" placeholder="Password (8+, letter + number)" value={password} onChangeText={setPassword} secure />
               <AuthField dark testID="signup-confirm-input" icon="lock-closed-outline" placeholder="Confirm Password" value={confirm} onChangeText={setConfirm} secure />
               {role === "student" ? (
@@ -81,9 +107,19 @@ export default function SignupScreen() {
               ) : null}
             </View>
 
+            {otpSent ? (
+              <View style={{ marginTop: 14 }}>
+                <AuthField dark testID="signup-otp-input" icon="shield-checkmark-outline" placeholder="6-digit OTP from your email" value={otp} onChangeText={(v: string) => setOtp(v.replace(/\D/g, "").slice(0, 6))} keyboardType="number-pad" />
+                {info ? <Text style={styles.help}>{info}</Text> : null}
+                <Pressable disabled={cooldown > 0 || loading} onPress={async () => { setErr(null); setLoading(true); try { await sendOtp(); } catch (e: any) { setErr(e?.message || "Could not send the OTP"); } finally { setLoading(false); } }} testID="signup-resend-otp" style={{ marginTop: 8, alignSelf: "flex-start" }}>
+                  <Text style={[styles.link, cooldown > 0 && { color: "#94A3B8" }]}>{cooldown > 0 ? `Resend OTP in ${cooldown}s` : "Resend OTP"}</Text>
+                </Pressable>
+              </View>
+            ) : null}
+
             {err ? <Text style={styles.err} testID="signup-error">{err}</Text> : null}
 
-            <GradBtn testID="signup-submit" title="Create Account" onPress={onSubmit} loading={loading} style={{ marginTop: 18 }} height={54} />
+            <GradBtn testID="signup-submit" title={otpSent ? "Verify & Create Account" : "Send OTP to my email"} onPress={onSubmit} loading={loading} style={{ marginTop: 18 }} height={54} />
 
             <Pressable onPress={() => router.replace({ pathname: "/(auth)/login", params: { role } })} testID="goto-login" style={{ marginTop: 18 }}>
               <Text style={styles.bottom}>Already have an account? <Text style={styles.link}>Login</Text></Text>
