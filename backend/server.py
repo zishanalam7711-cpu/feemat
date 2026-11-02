@@ -26,6 +26,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import BaseModel, EmailStr, Field
 from payment_service import get_payment_service, PRO_MONTHLY_INR, PRO_YEARLY_INR
+import signup_otp
 
 # ---------- config ----------
 ROOT_DIR = Path(__file__).parent
@@ -88,6 +89,14 @@ async def lifespan(app: FastAPI):
     except Exception:
         logging.getLogger("feemat").exception("AI startup tasks failed (the rest of the API still works)")
     await db.password_resets.create_index("email", unique=True)
+    try:  # sign-up OTP + student homework submissions
+        await db.signup_otps.create_index("email", unique=True)
+        await db.hw_submissions.create_index([("homework_id", 1), ("student_user_id", 1)], unique=True)
+        await db.hw_submissions.create_index([("teacher_user_id", 1), ("updated_at", -1)])
+        await db.hw_files.create_index([("student_user_id", 1), ("day", 1)])
+        await db.hw_files.create_index("id", unique=True)
+    except Exception:
+        logging.getLogger("feemat").exception("signup-otp / homework-submission indexes failed (the rest of the API still works)")
     await db.users.create_index("email", unique=True)
     await db.teachers.create_index("teacher_id", unique=True)
     await db.teachers.create_index("user_id", unique=True)
@@ -271,6 +280,7 @@ class SignupIn(BaseModel):
     name: str = Field(min_length=1, max_length=80)
     role: Role
     claim_code: Optional[str] = None
+    otp: Optional[str] = Field(default=None, max_length=10)  # e-mail OTP from POST /auth/signup-otp
 
 
 class ManualStudentIn(BaseModel):
@@ -555,10 +565,17 @@ async def signup(data: SignupIn):
     claim_code = _norm_code(data.claim_code) if data.role == "student" else ""
     if claim_code and not await db.connections.find_one({"claim_code": claim_code, "managed": True}):
         raise HTTPException(400, "This code is incorrect or has already been used. Ask your teacher again, or leave the code empty.")
+    otp_needed = signup_otp.required()
+    if otp_needed:  # the e-mail address must be proven with the OTP that was mailed to it
+        try:
+            await signup_otp.consume_otp(db, JWT_SECRET, email, data.otp or "", now_utc())
+        except signup_otp.OtpError as e:
+            raise HTTPException(e.status, e.message)
     uid = str(uuid.uuid4())
     await db.users.insert_one(
         {"id": uid, "email": email, "password_hash": hash_pw(data.password),
-         "role": data.role, "name": data.name.strip(), "created_at": now_utc().isoformat()}
+         "role": data.role, "name": data.name.strip(), "created_at": now_utc().isoformat(),
+         **({"email_verified": True} if otp_needed else {})}
     )
     if data.role == "teacher":
         tid = await next_teacher_id()
@@ -2301,6 +2318,11 @@ async def run_reminders(user: dict = Depends(require_role("teacher"))):
 # ---------- AI agent (teacher only). All logic lives in ai_*.py; it reuses the functions above ----------
 from types import SimpleNamespace  # noqa: E402
 import ai_routes  # noqa: E402
+
+import hw_submissions  # noqa: E402
+
+signup_otp.install(api, db, send_email, mail_configured, lambda: JWT_SECRET, now_utc)
+hw_submissions.install(api, db, notify, _resolve_targets, require_role("student"), require_role("teacher"), now_utc)
 
 ai_routes.install(
     api,

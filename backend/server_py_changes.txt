@@ -1,0 +1,25 @@
+Agar server.py replace nahi karni, to sirf ye 6 badlav haath se karo:
+
+1) Upar imports mein "from payment_service import ..." ke neeche likho:
+       import signup_otp
+
+2) class SignupIn mein "claim_code: Optional[str] = None" ke neeche ek line jodo:
+       otp: Optional[str] = Field(default=None, max_length=10)
+
+3) signup() mein, claim_code wali check ke baad aur "uid = str(uuid.uuid4())" se pehle:
+       otp_needed = signup_otp.required()
+       if otp_needed:
+           try:
+               await signup_otp.consume_otp(db, JWT_SECRET, email, data.otp or "", now_utc())
+           except signup_otp.OtpError as e:
+               raise HTTPException(e.status, e.message)
+
+4) usi signup() mein db.users.insert_one({...}) ke dict ke aakhir mein jodo:
+       **({"email_verified": True} if otp_needed else {})
+
+5) lifespan mein "await db.password_resets.create_index(...)" ke neeche index wale 5 line (replace file mein dekho: signup_otps, hw_submissions, hw_files).
+
+6) Sabse neeche, "ai_routes.install(" se pehle:
+       import hw_submissions
+       signup_otp.install(api, db, send_email, mail_configured, lambda: JWT_SECRET, now_utc)
+       hw_submissions.install(api, db, notify, _resolve_targets, require_role("student"), require_role("teacher"), now_utc)
