@@ -14,6 +14,12 @@ Teacher side
   GET  /teacher/homework/files/{fid}           one photo, full size
   POST /teacher/homework/submissions/{sid}/review   {status: reviewed|redo, remark, marks, out_of}
 
+Teacher homework with PHOTOS (the teacher attaches pages / worksheets / board photos to the homework)
+  POST   /teacher/homework/attachments        upload ONE photo (base64 + thumbnail) -> file id, then pass attachment_ids to POST /teacher/homework
+  GET    /teacher/homework/attachments/{fid}  full photo (teacher)
+  GET    /student/homework/attachments/{fid}  full photo (only for homework that is meant for this student)
+  DELETE /teacher/homework/{hid}              delete a homework with its photos and the students' submissions
+
 Rules: a student can only send to the teacher he is linked to, only for homework that is meant for him; a teacher only sees
 photos of his own students; photos are verified with Pillow (real image, size limit); max 5 photos per homework;
 a reviewed submission is locked until the teacher sends it back with "redo".
@@ -26,6 +32,9 @@ from datetime import datetime, timedelta
 from typing import Any, Awaitable, Callable, List, Optional
 
 MAX_FILES = 5
+MAX_ATTACH = 5
+MAX_ATTACH_UPLOADS_PER_DAY = 60
+MAX_SUBJECT = 60
 MAX_IMG_BYTES = 2_500_000
 MAX_THUMB_BYTES = 60_000
 MAX_UPLOADS_PER_DAY = 40
@@ -284,6 +293,97 @@ async def review(db, notify: Callable[..., Awaitable[Any]], teacher_uid: str, si
     return await teacher_detail(db, teacher_uid, sid)
 
 
+# ------------------------------------------------------------------ teacher: homework with photos
+async def store_attachment(db, teacher_uid: str, data_b64: str, thumb_b64: str, name: str, now: datetime) -> dict:
+    day = _local_date(now)
+    if await db.hw_files.count_documents({"teacher_user_id": teacher_uid, "kind": "attachment", "day": day}) >= MAX_ATTACH_UPLOADS_PER_DAY:
+        raise HWError(429, "You have uploaded too many photos today. Please try again tomorrow.")
+    mime = _check_image(data_b64, MAX_IMG_BYTES, "photo")
+    thumb = ""
+    if thumb_b64:
+        _check_image(thumb_b64, MAX_THUMB_BYTES, "preview")
+        thumb = thumb_b64
+    cutoff = (now - timedelta(days=1)).isoformat()  # photos that never got attached to a homework are cleaned up after a day
+    await db.hw_files.delete_many({"teacher_user_id": teacher_uid, "kind": "attachment", "homework_id": None, "created_at": {"$lt": cutoff}})
+    doc = {"id": str(uuid.uuid4()), "kind": "attachment", "teacher_user_id": teacher_uid, "student_user_id": None, "homework_id": None,
+           "submission_id": None, "mime": mime, "data": data_b64, "thumb": thumb, "name": (name or "photo")[:80], "size": len(data_b64),
+           "day": day, "created_at": now.isoformat()}
+    await db.hw_files.insert_one(doc)
+    return {"id": doc["id"], "mime": mime}
+
+
+async def prepare_new(db, teacher_uid: str, hid: str, assigned_date: Optional[str], due_date: str, subject: str,
+                      attachment_ids: List[str], now: datetime) -> dict:
+    """Validates the new fields of a homework and attaches the uploaded photos. Returns the extra fields to store on the homework."""
+    today = _local_date(now)
+    assigned = (assigned_date or "").strip() or today
+    try:
+        a = datetime.fromisoformat(assigned).date()
+        t = datetime.fromisoformat(today).date()
+    except ValueError:
+        raise HWError(400, "The homework date must look like 2026-10-24.")
+    if not (-45 <= (a - t).days <= 14):
+        raise HWError(400, "The homework date can be at most 45 days back or 14 days ahead.")
+    if assigned_date and due_date and due_date < assigned:
+        raise HWError(400, "The last date cannot be before the homework date.")
+    ids = list(dict.fromkeys(attachment_ids or []))
+    if len(ids) > MAX_ATTACH:
+        raise HWError(400, f"You can attach at most {MAX_ATTACH} photos.")
+    for fid in ids:
+        f = await db.hw_files.find_one({"id": fid})
+        if not f or f.get("kind") != "attachment" or f["teacher_user_id"] != teacher_uid or f.get("homework_id") not in (None, hid):
+            raise HWError(400, "One of the photos was not found. Please add it again.")
+    for fid in ids:
+        await db.hw_files.update_one({"id": fid}, {"$set": {"homework_id": hid}})
+    return {"subject": (subject or "").strip()[:MAX_SUBJECT], "assigned_date": assigned, "attachment_ids": ids}
+
+
+THUMB_DOCS = 20  # only the newest homework carry inline thumbnails in a list (keeps the list light); older photos open on tap
+
+
+async def with_attachments(db, docs: List[dict]) -> List[dict]:
+    """Adds 'attachments' [{id, thumb, mime}] to homework dicts (newest first) and fills defaults for old homework (no subject / date)."""
+    want = [fid for d in docs[:THUMB_DOCS] for fid in (d.get("attachment_ids") or [])]
+    found: dict = {}
+    if want:
+        async for f in db.hw_files.find({"id": {"$in": want}}):
+            found[f["id"]] = {"id": f["id"], "thumb": f.get("thumb", ""), "mime": f.get("mime")}
+    for n, d in enumerate(docs):
+        ids = d.get("attachment_ids") or []
+        d["attachments"] = [found[i] for i in ids if i in found] if n < THUMB_DOCS else [{"id": i, "thumb": "", "mime": "image/jpeg"} for i in ids]
+        d.setdefault("subject", "")
+        d["assigned_date"] = d.get("assigned_date") or str(d.get("created_at", ""))[:10]
+    return docs
+
+
+async def attachment_for_teacher(db, teacher_uid: str, fid: str) -> dict:
+    f = await db.hw_files.find_one({"id": fid})
+    if not f or f.get("kind") != "attachment" or f["teacher_user_id"] != teacher_uid:
+        raise HWError(404, "Photo not found.")
+    return {"id": fid, "mime": f["mime"], "data": f["data"]}
+
+
+async def attachment_for_student(db, student_uid: str, fid: str) -> dict:
+    f = await db.hw_files.find_one({"id": fid})
+    if not f or f.get("kind") != "attachment" or not f.get("homework_id"):
+        raise HWError(404, "Photo not found.")
+    await _my_homework(db, student_uid, f["homework_id"])  # the homework must be meant for this student
+    return {"id": fid, "mime": f["mime"], "data": f["data"]}
+
+
+async def delete_homework(db, teacher_uid: str, hid: str) -> dict:
+    h = await db.homework.find_one({"id": hid, "teacher_user_id": teacher_uid})
+    if not h:
+        raise HWError(404, "Homework not found.")
+    subs = [s["id"] async for s in db.hw_submissions.find({"homework_id": hid, "teacher_user_id": teacher_uid})]
+    if subs:
+        await db.hw_files.delete_many({"submission_id": {"$in": subs}})
+    await db.hw_files.delete_many({"homework_id": hid, "teacher_user_id": teacher_uid, "kind": "attachment"})
+    await db.hw_submissions.delete_many({"homework_id": hid, "teacher_user_id": teacher_uid})
+    await db.homework.delete_one({"id": hid, "teacher_user_id": teacher_uid})
+    return {"ok": True, "deleted_submissions": len(subs)}
+
+
 # ------------------------------------------------------------------ routes
 try:
     from pydantic import BaseModel, Field
@@ -375,5 +475,34 @@ def install(api, db, notify, resolve_targets, student_dep, teacher_dep, now_fn) 
     async def hw_list(hid: str, user: dict = Depends(teacher_dep)):
         try:
             return await teacher_list(db, user["id"], hid, resolve_targets)
+        except HWError as e:
+            raise _http(e)
+
+    # ---- teacher: homework with photos
+    @api.post("/teacher/homework/attachments")
+    async def hw_attach_upload(data: FileIn, user: dict = Depends(teacher_dep)):
+        try:
+            return await store_attachment(db, user["id"], data.data, data.thumb, data.name, now_fn())
+        except HWError as e:
+            raise _http(e)
+
+    @api.get("/teacher/homework/attachments/{fid}")
+    async def hw_attach_teacher(fid: str, user: dict = Depends(teacher_dep)):
+        try:
+            return await attachment_for_teacher(db, user["id"], fid)
+        except HWError as e:
+            raise _http(e)
+
+    @api.get("/student/homework/attachments/{fid}")
+    async def hw_attach_student(fid: str, user: dict = Depends(student_dep)):
+        try:
+            return await attachment_for_student(db, user["id"], fid)
+        except HWError as e:
+            raise _http(e)
+
+    @api.delete("/teacher/homework/{hid}")
+    async def hw_delete(hid: str, user: dict = Depends(teacher_dep)):
+        try:
+            return await delete_homework(db, user["id"], hid)
         except HWError as e:
             raise _http(e)

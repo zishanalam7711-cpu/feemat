@@ -27,6 +27,7 @@ from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import BaseModel, EmailStr, Field
 from payment_service import get_payment_service, PRO_MONTHLY_INR, PRO_YEARLY_INR
 import signup_otp
+import hw_submissions
 
 # ---------- config ----------
 ROOT_DIR = Path(__file__).parent
@@ -410,12 +411,15 @@ class UpgradeIn(BaseModel):
 
 
 class HomeworkIn(BaseModel):
-    title: str
-    description: str = ""
+    title: str = Field(min_length=1, max_length=200)
+    description: str = Field(default="", max_length=2000)
     due_date: str  # YYYY-MM-DD
     target: Literal["all", "class", "batch", "students"] = "all"
     target_id: Optional[str] = None
     student_ids: Optional[List[str]] = None
+    subject: str = Field(default="", max_length=60)
+    assigned_date: Optional[str] = None  # the day this homework is given (daily diary); default today
+    attachment_ids: List[str] = Field(default_factory=list, max_length=5)  # photos from POST /teacher/homework/attachments
 
 
 class ExamIn(BaseModel):
@@ -1795,26 +1799,33 @@ async def teacher_reports_advanced(user: dict = Depends(require_pro())):
 # ---------- homework (Pro) ----------
 @api.post("/teacher/homework")
 async def create_homework(data: HomeworkIn, user: dict = Depends(require_pro())):
+    hid = str(uuid.uuid4())
+    try:
+        extra = await hw_submissions.prepare_new(db, user["id"], hid, data.assigned_date, data.due_date, data.subject, data.attachment_ids, now_utc())
+    except hw_submissions.HWError as e:
+        raise HTTPException(e.status, e.message)
     doc = {
-        "id": str(uuid.uuid4()),
+        "id": hid,
         "teacher_user_id": user["id"],
         "title": data.title.strip(),
-        "description": data.description,
+        "description": data.description.strip(),
         "due_date": data.due_date,
         "target": data.target,
         "target_id": data.target_id,
         "student_ids": data.student_ids or [],
         "created_at": now_utc().isoformat(),
+        **extra,
     }
     await db.homework.insert_one(doc)
     student_ids = await _resolve_targets(user["id"], data.target, data.target_id, data.student_ids)
-    await notify_many(student_ids, "New Homework", data.title, "homework")
-    return clean(doc)
+    await notify_many(student_ids, "New Homework", (extra["subject"] + ": " if extra["subject"] else "") + data.title.strip(), "homework")
+    return (await hw_submissions.with_attachments(db, [clean(doc)]))[0]
 
 
 @api.get("/teacher/homework")
 async def list_homework_teacher(user: dict = Depends(require_role("teacher"))):
-    return [clean(d) async for d in db.homework.find({"teacher_user_id": user["id"]}).sort("created_at", -1)]
+    docs = [clean(d) async for d in db.homework.find({"teacher_user_id": user["id"]}).sort("created_at", -1).limit(300)]
+    return await hw_submissions.with_attachments(db, docs)
 
 
 @api.get("/student/homework")
@@ -1822,7 +1833,7 @@ async def list_homework_student(user: dict = Depends(require_role("student"))):
     conn = await db.connections.find_one({"student_user_id": user["id"]})
     if not conn:
         return []
-    all_hw = [clean(d) async for d in db.homework.find({"teacher_user_id": conn["teacher_user_id"]}).sort("created_at", -1)]
+    all_hw = [clean(d) async for d in db.homework.find({"teacher_user_id": conn["teacher_user_id"]}).sort("created_at", -1).limit(300)]
     visible = []
     for h in all_hw:
         target = h.get("target", "all")
@@ -1834,7 +1845,7 @@ async def list_homework_student(user: dict = Depends(require_role("student"))):
             visible.append(h)
         elif target == "students" and user["id"] in (h.get("student_ids") or []):
             visible.append(h)
-    return visible
+    return await hw_submissions.with_attachments(db, visible)
 
 
 async def _resolve_targets(teacher_uid: str, target: str, target_id: Optional[str], student_ids: Optional[List[str]]) -> List[str]:
@@ -2318,8 +2329,6 @@ async def run_reminders(user: dict = Depends(require_role("teacher"))):
 # ---------- AI agent (teacher only). All logic lives in ai_*.py; it reuses the functions above ----------
 from types import SimpleNamespace  # noqa: E402
 import ai_routes  # noqa: E402
-
-import hw_submissions  # noqa: E402
 
 signup_otp.install(api, db, send_email, mail_configured, lambda: JWT_SECRET, now_utc)
 hw_submissions.install(api, db, notify, _resolve_targets, require_role("student"), require_role("teacher"), now_utc)
