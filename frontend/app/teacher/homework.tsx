@@ -1,8 +1,5 @@
-import React, { useCallback, useMemo, useState } from "react";
-import { InlineOverlay } from "@/src/components/InlineOverlay";
-import {
-  View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, Modal, KeyboardAvoidingView, Platform, TextInput, Alert,
-} from "react-native";
+import React, { useCallback, useMemo, useRef, useState } from "react";
+import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, Alert, Share, Image } from "react-native";
 import { useFocusEffect, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -10,28 +7,22 @@ import { SPACING, RADIUS } from "@/src/lib/theme";
 import { api } from "@/src/lib/api";
 import { ProUpgradeModal } from "@/src/components/ProUpgradeModal";
 import { HomeworkSubmissions } from "@/src/components/HomeworkSubmissions";
-import {
-  AudiencePicker, Audience, EVERYONE, audienceBody, audienceLabel, audienceValid,
-} from "@/src/components/AudiencePicker";
+import { HomeworkComposer } from "@/src/components/HomeworkComposer";
+import { HomeworkPhotoViewer } from "@/src/components/HomeworkPhotoViewer";
+import { audienceLabel } from "@/src/components/AudiencePicker";
+import { addDaysYmd, dataUri, dayLabel, localToday } from "@/src/lib/hwFiles";
 
 const DARK = {
-  bg: "#071B45",
-  card: "#0E2A63",
-  border: "rgba(255,255,255,0.08)",
-  text: "#FFFFFF",
-  sub: "rgba(255,255,255,0.6)",
-  input: "rgba(255,255,255,0.07)",
+  bg: "#071B45", card: "#0E2A63", border: "rgba(255,255,255,0.08)", text: "#FFFFFF", sub: "rgba(255,255,255,0.6)", input: "rgba(255,255,255,0.07)",
 };
+const SUBJECT_COLORS: Record<string, string> = {
+  Maths: "#F59E0B", Science: "#10B981", English: "#6366F1", Hindi: "#EF4444", SST: "#14B8A6", Computer: "#0EA5E9", GK: "#EC4899",
+};
+const subjectColor = (s: string) => SUBJECT_COLORS[s] || "#8B9BC0";
 
-const todayStr = () => new Date().toISOString().slice(0, 10);
-function addDays(d: string, n: number) {
-  const dt = new Date(d + "T00:00:00Z");
-  dt.setUTCDate(dt.getUTCDate() + n);
-  return dt.toISOString().slice(0, 10);
-}
 function daysLeft(due: string) {
   const a = new Date(due + "T00:00:00Z").getTime();
-  const b = new Date(todayStr() + "T00:00:00Z").getTime();
+  const b = new Date(localToday() + "T00:00:00Z").getTime();
   return Math.round((a - b) / 86400000);
 }
 function dueBadge(due: string) {
@@ -44,28 +35,26 @@ function dueBadge(due: string) {
   return { txt: `${n} days left`, color: "#10B981" };
 }
 
-type Filter = "upcoming" | "past" | "all";
+type Mode = "daily" | "upcoming" | "past" | "all";
 
 export default function Homework() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const today = localToday();
   const [items, setItems] = useState<any[]>([]);
   const [classes, setClasses] = useState<any[]>([]);
   const [batches, setBatches] = useState<any[]>([]);
   const [students, setStudents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<Filter>("upcoming");
-  const [show, setShow] = useState(false);
+  const [mode, setMode] = useState<Mode>("daily");
+  const [day, setDay] = useState(today);
+  const [compose, setCompose] = useState(false);
   const [pro, setPro] = useState(false);
-  const [busy, setBusy] = useState(false);
   const [counts, setCounts] = useState<Record<string, any>>({});
   const [subFor, setSubFor] = useState<any>(null);
+  const [photo, setPhoto] = useState<string | null>(null);
+  const stripRef = useRef<ScrollView>(null);
   const loadCounts = useCallback(async () => { try { setCounts(await api("/teacher/homework/submission-counts")); } catch {} }, []);
-
-  const [title, setTitle] = useState("");
-  const [desc, setDesc] = useState("");
-  const [due, setDue] = useState(addDays(todayStr(), 3));
-  const [aud, setAud] = useState<Audience>(EVERYONE);
 
   const load = useCallback(async () => {
     try {
@@ -82,31 +71,82 @@ export default function Homework() {
   }, [loadCounts]);
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
+  const byDay = useMemo(() => {
+    const m: Record<string, any[]> = {};
+    items.forEach((h) => { (m[h.assigned_date] = m[h.assigned_date] || []).push(h); });
+    return m;
+  }, [items]);
+
   const list = useMemo(() => {
-    const t = todayStr();
-    const up = items.filter((h) => h.due_date >= t).sort((a, b) => (a.due_date < b.due_date ? -1 : 1));
-    const past = items.filter((h) => h.due_date < t).sort((a, b) => (a.due_date < b.due_date ? 1 : -1));
-    return filter === "upcoming" ? up : filter === "past" ? past : [...up, ...past];
-  }, [items, filter]);
+    if (mode === "daily") return (byDay[day] || []).slice().reverse();
+    const up = items.filter((h) => h.due_date >= today).sort((a, b) => (a.due_date < b.due_date ? -1 : 1));
+    const past = items.filter((h) => h.due_date < today).sort((a, b) => (a.due_date < b.due_date ? 1 : -1));
+    return mode === "upcoming" ? up : mode === "past" ? past : [...up, ...past];
+  }, [items, mode, day, byDay, today]);
 
-  const upcomingCount = useMemo(() => items.filter((h) => h.due_date >= todayStr()).length, [items]);
+  const strip = useMemo(() => Array.from({ length: 12 }, (_, i) => addDaysYmd(today, 1 - i)), [today]); // tomorrow .. 10 days back
+  const activeCount = useMemo(() => items.filter((h) => h.due_date >= today).length, [items, today]);
 
-  const reset = () => { setTitle(""); setDesc(""); setDue(addDays(todayStr(), 3)); setAud(EVERYONE); };
-
-  const create = async () => {
-    if (!title.trim()) { Alert.alert("Enter a title", "Enter the homework title."); return; }
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(due)) { Alert.alert("Invalid date", "Enter the date as YYYY-MM-DD."); return; }
-    if (!audienceValid(aud)) { Alert.alert("Who is this for?", "Choose a class, batch or students."); return; }
-    setBusy(true);
-    try {
-      await api("/teacher/homework", { method: "POST", body: { title: title.trim(), description: desc.trim(), due_date: due, ...audienceBody(aud) } });
-      setShow(false); reset();
-      await load();
-    } catch (e: any) {
-      if (String(e?.message || "").includes("Upgrade to Pro")) { setShow(false); setPro(true); }
-      else Alert.alert("Error", e?.message || "Could not assign the homework.");
-    } finally { setBusy(false); }
+  const shareDay = async () => {
+    const hs = (byDay[day] || []).slice().reverse();
+    if (!hs.length) return;
+    const lines = hs.map((h, i) => `${i + 1}) ${h.subject ? h.subject + ": " : ""}${h.title}${h.description ? "\n" + h.description : ""}${h.attachments?.length ? `\n(${h.attachments.length} photo in the FeeMat app)` : ""}\nLast date: ${h.due_date}`);
+    try { await Share.share({ message: `📚 Homework - ${dayLabel(day, today)} (${day})\n\n${lines.join("\n\n")}` }); } catch {}
   };
+
+  const remove = (h: any) => {
+    Alert.alert("Delete this homework?", `"${h.title}" will be removed for the students, together with its photos and any homework they sent.`, [
+      { text: "Cancel", style: "cancel" },
+      { text: "Delete", style: "destructive", onPress: async () => {
+        try { await api(`/teacher/homework/${h.id}`, { method: "DELETE" }); await load(); }
+        catch (e: any) { Alert.alert("Could not delete", e?.message || "Please try again."); }
+      } },
+    ]);
+  };
+
+  const card = (h: any) => {
+    const b = dueBadge(h.due_date);
+    const c = counts[h.id];
+    const sent = c?.sent ?? 0, fresh = c?.submitted ?? 0;
+    return (
+      <View key={h.id} style={styles.card}>
+        <View style={{ flexDirection: "row", alignItems: "flex-start", gap: SPACING.sm }}>
+          <View style={{ flex: 1 }}>
+            {h.subject ? <View style={[styles.subjChip, { backgroundColor: subjectColor(h.subject) + "33" }]}><Text style={[styles.subjTxt, { color: subjectColor(h.subject) }]}>{h.subject}</Text></View> : null}
+            <Text style={styles.cTitle}>{h.title}</Text>
+          </View>
+          <View style={[styles.badge, { backgroundColor: b.color + "26" }]}><Text style={[styles.badgeTxt, { color: b.color }]}>{b.txt}</Text></View>
+          <Pressable onPress={() => remove(h)} hitSlop={10} testID={`hw-del-${h.id}`}><Ionicons name="trash-outline" size={18} color="rgba(255,255,255,0.45)" /></Pressable>
+        </View>
+        {h.description ? <Text style={styles.body}>{h.description}</Text> : null}
+        {h.attachments?.length ? (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+            {h.attachments.map((a: any) => (
+              <Pressable key={a.id} onPress={() => setPhoto(a.id)} testID="hw-task-photo">
+                {a.thumb ? <Image source={{ uri: dataUri(a.mime, a.thumb) }} style={styles.thumb} /> : <View style={[styles.thumb, { alignItems: "center", justifyContent: "center" }]}><Ionicons name="image" size={22} color={DARK.sub} /></View>}
+              </Pressable>
+            ))}
+          </ScrollView>
+        ) : null}
+        <View style={styles.metaRow}>
+          <Ionicons name="calendar" size={12} color={DARK.sub} />
+          <Text style={styles.meta}>Given {dayLabel(h.assigned_date, today)}  •  Last date {h.due_date}</Text>
+        </View>
+        <View style={styles.metaRow}>
+          <Ionicons name="people" size={12} color={DARK.sub} />
+          <Text style={styles.meta}>{audienceLabel(h, classes, batches)}</Text>
+        </View>
+        <Pressable onPress={() => setSubFor(h)} testID={`hw-subs-${h.id}`} style={styles.subsBtn}>
+          <Ionicons name="albums-outline" size={16} color="#fff" />
+          <Text style={styles.subsTxt}>Submissions{c ? `  ${sent}/${c.total}` : ""}</Text>
+          {fresh > 0 ? <View style={styles.newDot}><Text style={styles.newDotTxt}>{fresh} new</Text></View> : null}
+        </Pressable>
+      </View>
+    );
+  };
+
+  const dayItems = byDay[day] || [];
+  const subjects = Array.from(new Set(dayItems.map((h) => h.subject).filter(Boolean)));
 
   return (
     <View style={{ flex: 1, backgroundColor: DARK.bg }}>
@@ -114,111 +154,72 @@ export default function Homework() {
         <Pressable onPress={() => router.back()} hitSlop={12}><Ionicons name="arrow-back" size={22} color="#fff" /></Pressable>
         <View style={{ flex: 1 }}>
           <Text style={styles.title}>Homework</Text>
-          <Text style={styles.sub}>{upcomingCount} active</Text>
+          <Text style={styles.sub}>{activeCount} active  •  {(byDay[today] || []).length} given today</Text>
         </View>
-        <Pressable testID="new-hw" onPress={() => setShow(true)} style={styles.addBtn}>
-          <Ionicons name="add" size={18} color="#fff" />
-          <Text style={styles.addTxt}>New</Text>
+        <Pressable testID="new-hw" onPress={() => setCompose(true)} style={styles.addBtn}>
+          <Ionicons name="add" size={18} color="#fff" /><Text style={styles.addTxt}>New</Text>
         </Pressable>
       </View>
 
       <View style={styles.filters}>
-        {([["upcoming", "Active"], ["past", "Past"], ["all", "All"]] as [Filter, string][]).map(([k, l]) => (
-          <Pressable key={k} onPress={() => setFilter(k)} style={[styles.fChip, filter === k && styles.fChipOn]}>
-            <Text style={[styles.fTxt, filter === k && { color: "#fff" }]}>{l}</Text>
+        {([["daily", "Daily"], ["upcoming", "Active"], ["past", "Past"], ["all", "All"]] as [Mode, string][]).map(([k, l]) => (
+          <Pressable key={k} onPress={() => setMode(k)} style={[styles.fChip, mode === k && styles.fChipOn]} testID={`hw-mode-${k}`}>
+            <Text style={[styles.fTxt, mode === k && { color: "#fff" }]}>{l}</Text>
           </Pressable>
         ))}
       </View>
+
+      {mode === "daily" ? (
+        <View>
+          <ScrollView ref={stripRef} horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.strip} onContentSizeChange={() => stripRef.current?.scrollToEnd({ animated: false })}>
+            {strip.slice().reverse().map((d) => {
+              const n = (byDay[d] || []).length;
+              const sel = d === day;
+              const dt = new Date(d + "T00:00:00Z");
+              return (
+                <Pressable key={d} onPress={() => setDay(d)} style={[styles.dayChip, sel && styles.dayChipOn]} testID={`hw-day-${d}`}>
+                  <Text style={[styles.dayName, sel && { color: "#fff" }]}>{d === today ? "Today" : dt.toLocaleDateString(undefined, { weekday: "short", timeZone: "UTC" })}</Text>
+                  <Text style={[styles.dayNum, sel && { color: "#fff" }]}>{dt.getUTCDate()}</Text>
+                  <View style={[styles.dayDot, { backgroundColor: n ? (sel ? "#fff" : "#35A7FF") : "transparent" }]}>{n ? <Text style={[styles.dayCnt, sel && { color: "#1F6BFF" }]}>{n}</Text> : null}</View>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+          <View style={styles.daySummary}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.dayTitle}>{dayLabel(day, today)}  •  {day}</Text>
+              <Text style={styles.sub}>{dayItems.length ? `${dayItems.length} homework${subjects.length ? "  •  " + subjects.join(", ") : ""}` : "No homework on this day"}</Text>
+            </View>
+            {dayItems.length ? <Pressable onPress={shareDay} style={styles.shareBtn} testID="hw-share-day"><Ionicons name="share-social" size={15} color="#fff" /><Text style={styles.shareTxt}>Share</Text></Pressable> : null}
+          </View>
+        </View>
+      ) : null}
 
       {loading ? (
         <View style={styles.center}><ActivityIndicator color="#35A7FF" /></View>
       ) : list.length === 0 ? (
         <View style={styles.center}>
           <Ionicons name="clipboard-outline" size={56} color="rgba(255,255,255,0.25)" />
-          <Text style={styles.emptyTxt}>{filter === "past" ? "No past homework" : "No homework yet"}</Text>
-          <Text style={{ color: DARK.sub }}>Tap "New" above to assign homework.</Text>
+          <Text style={styles.emptyTxt}>{mode === "daily" ? "No homework on this day" : mode === "past" ? "No past homework" : "No homework yet"}</Text>
+          <Pressable onPress={() => setCompose(true)} style={styles.emptyBtn}><Ionicons name="add" size={18} color="#fff" /><Text style={styles.addTxt}>{mode === "daily" ? "Add homework for this day" : "New homework"}</Text></Pressable>
         </View>
       ) : (
-        <ScrollView contentContainerStyle={{ padding: SPACING.md, gap: SPACING.md, paddingBottom: SPACING.xxl }}>
-          {list.map((h) => {
-            const b = dueBadge(h.due_date);
-            return (
-              <View key={h.id} style={styles.card}>
-                <View style={{ flexDirection: "row", alignItems: "flex-start", gap: SPACING.sm }}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.cTitle}>{h.title}</Text>
-                    {h.description ? <Text style={styles.body}>{h.description}</Text> : null}
-                  </View>
-                  <View style={[styles.badge, { backgroundColor: b.color + "26" }]}>
-                    <Text style={[styles.badgeTxt, { color: b.color }]}>{b.txt}</Text>
-                  </View>
-                </View>
-                <View style={styles.metaRow}>
-                  <Ionicons name="calendar" size={12} color={DARK.sub} />
-                  <Text style={styles.meta}>Last date: {h.due_date}</Text>
-                  <Text style={styles.meta}>•</Text>
-                  <Ionicons name="people" size={12} color={DARK.sub} />
-                  <Text style={styles.meta}>{audienceLabel(h, classes, batches)}</Text>
-                </View>
-                {(() => {
-                  const c = counts[h.id];
-                  const sent = c?.sent ?? 0, fresh = c?.submitted ?? 0;
-                  return (
-                    <Pressable onPress={() => setSubFor(h)} testID={`hw-subs-${h.id}`} style={styles.subsBtn}>
-                      <Ionicons name="albums-outline" size={16} color="#fff" />
-                      <Text style={styles.subsTxt}>Submissions{c ? `  ${sent}/${c.total}` : ""}</Text>
-                      {fresh > 0 ? <View style={styles.newDot}><Text style={styles.newDotTxt}>{fresh} new</Text></View> : null}
-                    </Pressable>
-                  );
-                })()}
-              </View>
-            );
-          })}
+        <ScrollView contentContainerStyle={{ padding: SPACING.md, gap: SPACING.md, paddingBottom: 120 }}>
+          {list.map(card)}
         </ScrollView>
       )}
 
-      <InlineOverlay visible={show} onClose={() => setShow(false)}>
-        <View style={styles.overlay}>
-          <Pressable style={{ flex: 1 }} onPress={() => setShow(false)} />
-          <View style={[styles.sheet, { paddingBottom: insets.bottom + SPACING.lg }]}>
-            <ScrollView keyboardShouldPersistTaps="handled">
-              <Text style={styles.sheetTitle}>New Homework</Text>
+      {!loading && list.length > 0 ? (
+        <Pressable onPress={() => setCompose(true)} style={[styles.fab, { bottom: insets.bottom + 18 }]} testID="hw-fab">
+          <Ionicons name="add" size={22} color="#fff" /><Text style={styles.fabTxt}>New homework</Text>
+        </Pressable>
+      ) : null}
 
-              <Text style={styles.label}>Title</Text>
-              <TextInput testID="hw-title" value={title} onChangeText={setTitle} placeholder="e.g. Chapter 5 questions" placeholderTextColor="rgba(255,255,255,0.35)" style={styles.input} />
-
-              <Text style={styles.label}>Details</Text>
-              <TextInput
-                testID="hw-desc" value={desc} onChangeText={setDesc} multiline placeholder="Describe what to do"
-                placeholderTextColor="rgba(255,255,255,0.35)" style={[styles.input, { minHeight: 90, textAlignVertical: "top", paddingTop: 12 }]}
-              />
-
-              <Text style={styles.label}>Last date</Text>
-              <TextInput testID="hw-due" value={due} onChangeText={setDue} placeholder="YYYY-MM-DD" placeholderTextColor="rgba(255,255,255,0.35)" style={styles.input} />
-              <View style={styles.wrap}>
-                {([["Tomorrow", 1], ["3 days", 3], ["1 week", 7], ["2 weeks", 14]] as [string, number][]).map(([l, n]) => {
-                  const v = addDays(todayStr(), n);
-                  return (
-                    <Pressable key={l} onPress={() => setDue(v)} style={[styles.chip, due === v && styles.chipOn]}>
-                      <Text style={[styles.chipTxt, due === v && { color: "#fff" }]}>{l}</Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-
-              <View style={{ marginTop: SPACING.lg }}>
-                <AudiencePicker classes={classes} batches={batches} students={students} value={aud} onChange={setAud} />
-              </View>
-
-              <Pressable testID="hw-save" onPress={create} disabled={busy} style={[styles.saveBtn, busy && { opacity: 0.6 }]}>
-                {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveTxt}>Assign Homework</Text>}
-              </Pressable>
-            </ScrollView>
-          </View>
-        </View>
-      </InlineOverlay>
+      <HomeworkComposer visible={compose} onClose={() => setCompose(false)} classes={classes} batches={batches} students={students} bottomInset={insets.bottom}
+        defaultDate={mode === "daily" ? day : today} onCreated={load} onNeedPro={() => setPro(true)} />
       <ProUpgradeModal visible={pro} onClose={() => setPro(false)} feature="Homework" />
       <HomeworkSubmissions visible={!!subFor} homework={subFor} onClose={() => setSubFor(null)} bottomInset={insets.bottom} onChanged={loadCounts} />
+      <HomeworkPhotoViewer fileId={photo} role="teacher" kind="attachment" onClose={() => setPhoto(null)} />
     </View>
   );
 }
@@ -234,10 +235,25 @@ const styles = StyleSheet.create({
   fChip: { paddingHorizontal: 14, height: 32, borderRadius: 999, backgroundColor: DARK.input, borderWidth: 1, borderColor: DARK.border, alignItems: "center", justifyContent: "center" },
   fChipOn: { backgroundColor: "#1F6BFF", borderColor: "#1F6BFF" },
   fTxt: { color: DARK.sub, fontSize: 13, fontWeight: "700" },
+  strip: { paddingHorizontal: SPACING.md, gap: 8, paddingBottom: 6 },
+  dayChip: { width: 56, paddingVertical: 8, borderRadius: 16, backgroundColor: DARK.input, borderWidth: 1, borderColor: DARK.border, alignItems: "center", gap: 2 },
+  dayChipOn: { backgroundColor: "#1F6BFF", borderColor: "#1F6BFF" },
+  dayName: { color: DARK.sub, fontSize: 11, fontWeight: "700" },
+  dayNum: { color: "#fff", fontSize: 17, fontWeight: "800" },
+  dayDot: { minWidth: 18, height: 16, borderRadius: 8, alignItems: "center", justifyContent: "center", paddingHorizontal: 4 },
+  dayCnt: { color: "#071B45", fontSize: 10, fontWeight: "800" },
+  daySummary: { flexDirection: "row", alignItems: "center", paddingHorizontal: SPACING.lg, paddingTop: 6, paddingBottom: 2, gap: 10 },
+  dayTitle: { color: "#fff", fontSize: 15, fontWeight: "800" },
+  shareBtn: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, height: 32, borderRadius: 999, backgroundColor: "rgba(255,255,255,0.12)" },
+  shareTxt: { color: "#fff", fontWeight: "700", fontSize: 12 },
   emptyTxt: { color: "#fff", fontSize: 16, fontWeight: "700", marginTop: SPACING.md },
+  emptyBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 16, height: 42, borderRadius: 999, backgroundColor: "#1F6BFF", marginTop: 12 },
   card: { padding: SPACING.md, backgroundColor: DARK.card, borderRadius: RADIUS.md, borderWidth: 1, borderColor: DARK.border, gap: 8 },
-  cTitle: { color: "#fff", fontSize: 15, fontWeight: "800" },
-  body: { color: "rgba(255,255,255,0.75)", lineHeight: 19, marginTop: 4 },
+  subjChip: { alignSelf: "flex-start", paddingHorizontal: 9, paddingVertical: 3, borderRadius: 999, marginBottom: 5 },
+  subjTxt: { fontSize: 11, fontWeight: "800" },
+  cTitle: { color: "#fff", fontSize: 16, fontWeight: "800" },
+  body: { color: "rgba(255,255,255,0.8)", lineHeight: 20, fontSize: 14 },
+  thumb: { width: 84, height: 84, borderRadius: 12, backgroundColor: DARK.input },
   badge: { paddingHorizontal: 10, height: 26, borderRadius: 13, alignItems: "center", justifyContent: "center" },
   badgeTxt: { fontSize: 11, fontWeight: "800" },
   subsBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, height: 40, borderRadius: 12, backgroundColor: "rgba(31,107,255,0.35)", marginTop: 4 },
@@ -246,15 +262,6 @@ const styles = StyleSheet.create({
   newDotTxt: { color: "#fff", fontSize: 10, fontWeight: "800" },
   metaRow: { flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" },
   meta: { color: DARK.sub, fontSize: 11 },
-  overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "flex-end" },
-  sheet: { backgroundColor: DARK.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: SPACING.lg, maxHeight: "92%" },
-  sheetTitle: { color: "#fff", fontSize: 20, fontWeight: "800" },
-  label: { color: DARK.sub, fontSize: 12, fontWeight: "700", marginTop: SPACING.md, marginBottom: 6, textTransform: "uppercase" },
-  input: { minHeight: 46, borderRadius: RADIUS.md, backgroundColor: DARK.input, color: "#fff", paddingHorizontal: SPACING.md, fontSize: 15, borderWidth: 1, borderColor: DARK.border },
-  wrap: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: SPACING.sm },
-  chip: { paddingHorizontal: 12, height: 32, borderRadius: 999, backgroundColor: DARK.input, borderWidth: 1, borderColor: DARK.border, alignItems: "center", justifyContent: "center" },
-  chipOn: { backgroundColor: "#1F6BFF", borderColor: "#1F6BFF" },
-  chipTxt: { color: DARK.sub, fontSize: 13, fontWeight: "600" },
-  saveBtn: { height: 50, borderRadius: RADIUS.md, backgroundColor: "#1F6BFF", alignItems: "center", justifyContent: "center", marginTop: SPACING.xl },
-  saveTxt: { color: "#fff", fontWeight: "800", fontSize: 15 },
+  fab: { position: "absolute", right: 18, flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 18, height: 50, borderRadius: 999, backgroundColor: "#1F6BFF", elevation: 6, shadowColor: "#000", shadowOpacity: 0.3, shadowRadius: 8, shadowOffset: { width: 0, height: 3 } },
+  fabTxt: { color: "#fff", fontWeight: "800", fontSize: 14 },
 });
