@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { LowAttendanceSheet } from "@/src/components/LowAttendanceSheet";
 import {
   View, Text, StyleSheet, FlatList, Pressable, ActivityIndicator, Alert, TextInput, Linking, Share, ScrollView,
 } from "react-native";
@@ -62,6 +63,7 @@ export default function AttendanceScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const [tab, setTab] = useState<"mark" | "report">("mark");
+  const [lowOpen, setLowOpen] = useState(false);
 
   // ---- mark tab state
   const [date, setDate] = useState(todayStr());
@@ -300,10 +302,16 @@ export default function AttendanceScreen() {
                     <Sum label="Days marked" v={report.days_marked} color="#3B82F6" />
                     <Sum label="Below 75%" v={(report.items || []).filter((i: any) => i.total > 0 && i.pct < 75).length} color="#EF4444" />
                   </View>
-                  <Pressable onPress={shareReport} style={styles.shareBtn}>
-                    <Ionicons name="share-social" size={16} color="#35A7FF" />
-                    <Text style={styles.shareTxt}>Share Report</Text>
-                  </Pressable>
+                  <View style={{ flexDirection: "row", gap: SPACING.sm }}>
+                    <Pressable onPress={() => setLowOpen(true)} style={[styles.shareBtn, { flex: 1, marginHorizontal: 0, backgroundColor: "rgba(239,68,68,0.16)" }]} testID="low-attendance-btn">
+                      <Ionicons name="warning" size={16} color="#F87171" />
+                      <Text style={[styles.shareTxt, { color: "#F87171" }]}>Low attendance</Text>
+                    </Pressable>
+                    <Pressable onPress={shareReport} style={[styles.shareBtn, { flex: 1, marginHorizontal: 0 }]}>
+                      <Ionicons name="share-social" size={16} color="#35A7FF" />
+                      <Text style={styles.shareTxt}>Share Report</Text>
+                    </Pressable>
+                  </View>
                 </View>
               }
               contentContainerStyle={{ padding: SPACING.md, gap: SPACING.sm, paddingBottom: SPACING.xxl }}
@@ -328,6 +336,7 @@ export default function AttendanceScreen() {
           )}
         </>
       )}
+      <LowAttendanceSheet visible={lowOpen} onClose={() => setLowOpen(false)} month={month} bottomInset={insets.bottom} />
     </View>
   );
 }

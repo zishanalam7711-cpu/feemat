@@ -63,6 +63,7 @@ export default function Exams() {
   const [showNew, setShowNew] = useState(false);
   const [entry, setEntry] = useState<any>(null);          // exam for marks entry
   const [marksMap, setMarksMap] = useState<Record<string, string>>({});
+  const [absentMap, setAbsentMap] = useState<Record<string, boolean>>({});
 
   // create form
   const [title, setTitle] = useState("");
@@ -101,7 +102,7 @@ export default function Exams() {
   }, [students]);
 
   const statsOf = (ex: any) => {
-    const list = marksBy[ex.id] || [];
+    const list = (marksBy[ex.id] || []).filter((x) => !x.absent);
     const n = list.length;
     if (!n) return { n: 0, avg: 0, passPct: 0, high: 0, low: 0, top: null as any };
     const avg = list.reduce((a, x) => a + (x.percentage || 0), 0) / n;
@@ -111,7 +112,7 @@ export default function Exams() {
   };
 
   const ranked = (ex: any) => {
-    const list = [...(marksBy[ex.id] || [])].sort((a, b) => b.marks - a.marks);
+    const list = [...(marksBy[ex.id] || [])].filter((x) => !x.absent).sort((a, b) => b.marks - a.marks);
     let rank = 0; let prev: number | null = null;
     return list.map((m, i) => {
       if (prev === null || m.marks !== prev) rank = i + 1;
@@ -139,14 +140,18 @@ export default function Exams() {
   // ---------- marks entry
   const openEntry = (ex: any) => {
     const m: Record<string, string> = {};
-    (marksBy[ex.id] || []).forEach((x) => { m[x.student_user_id] = String(x.marks); });
+    const ab: Record<string, boolean> = {};
+    (marksBy[ex.id] || []).forEach((x) => { if (x.absent) ab[x.student_user_id] = true; else m[x.student_user_id] = String(x.marks); });
     setMarksMap(m);
+    setAbsentMap(ab);
     setEntry(ex);
   };
   const saveMarks = async () => {
     const totalM = parseFloat(entry.total_marks);
-    const list: { student_user_id: string; marks: number }[] = [];
+    const list: { student_user_id: string; marks: number; absent?: boolean }[] = [];
+    for (const [uid, a] of Object.entries(absentMap)) { if (a) list.push({ student_user_id: uid, marks: 0, absent: true }); }
     for (const [uid, v] of Object.entries(marksMap)) {
+      if (absentMap[uid]) continue;
       if (v === "" || isNaN(parseFloat(v))) continue;
       const num = parseFloat(v);
       if (num < 0 || num > totalM) {
@@ -158,12 +163,23 @@ export default function Exams() {
     if (!list.length) { Alert.alert("Nothing entered", "Enter marks for at least one student."); return; }
     setBusy(true);
     try {
-      await api(`/teacher/exams/${entry.id}/marks`, { method: "POST", body: { entries: list } });
+      const r: any = await api(`/teacher/exams/${entry.id}/marks`, { method: "POST", body: { entries: list } });
       setEntry(null);
       await load();
+      if (r?.skipped?.length) Alert.alert("Some marks were not saved", `${r.skipped.length} entr${r.skipped.length === 1 ? "y" : "ies"} skipped: ${r.skipped[0].problem}`);
     } catch (e: any) {
       Alert.alert("Error", e?.message || "Could not save the marks.");
     } finally { setBusy(false); }
+  };
+
+  const deleteExam = (ex: any) => {
+    Alert.alert("Delete this exam?", `"${ex.title}" and all marks entered for it will be removed. This cannot be undone.`, [
+      { text: "Cancel", style: "cancel" },
+      { text: "Delete", style: "destructive", onPress: async () => {
+        try { await api(`/teacher/exams/${ex.id}`, { method: "DELETE" }); setSelected(null); await load(); }
+        catch (e: any) { Alert.alert("Could not delete", e?.message || "Please try again."); }
+      } },
+    ]);
   };
 
   // ---------- share
@@ -278,6 +294,7 @@ export default function Exams() {
               <Text style={styles.title} numberOfLines={1}>{selected?.title}</Text>
               <Text style={styles.meta}>{selected?.subject || "General"} • {selected?.exam_date} • Total {selected?.total_marks} • Pass {selected?.passing_marks}</Text>
             </View>
+            <Pressable onPress={() => selected && deleteExam(selected)} hitSlop={10} style={styles.delBtn} testID="delete-exam"><Ionicons name="trash-outline" size={18} color="#F87171" /></Pressable>
           </View>
 
           <ScrollView contentContainerStyle={{ padding: SPACING.md, gap: SPACING.sm, paddingBottom: SPACING.xxl }}>
@@ -407,14 +424,19 @@ export default function Exams() {
                         <Text style={[styles.gradeTxt, { color: failed ? "#EF4444" : gradeColor(g) }]}>{failed ? "Fail" : g}</Text>
                       </View>
                     ) : over ? <Text style={{ color: "#EF4444", fontSize: 11 }}>Too high</Text> : null}
+                    <Pressable onPress={() => setAbsentMap((p) => ({ ...p, [c.student_user_id]: !p[c.student_user_id] }))} hitSlop={6}
+                      style={[styles.absBtn, absentMap[c.student_user_id] && { backgroundColor: "#EF4444", borderColor: "#EF4444" }]} testID={`absent-${c.student_user_id}`}>
+                      <Text style={[styles.absTxt, absentMap[c.student_user_id] && { color: "#fff" }]}>AB</Text>
+                    </Pressable>
                     <TextInput
+                      editable={!absentMap[c.student_user_id]}
                       testID={`marks-${c.student_user_id}`}
-                      value={v}
+                      value={absentMap[c.student_user_id] ? "" : v}
                       onChangeText={(t) => setMarksMap((p) => ({ ...p, [c.student_user_id]: t }))}
                       keyboardType="decimal-pad"
                       placeholder="—"
                       placeholderTextColor="rgba(255,255,255,0.35)"
-                      style={styles.markInput}
+                      style={[styles.markInput, absentMap[c.student_user_id] && { opacity: 0.35 }]}
                     />
                   </View>
                 );
@@ -478,5 +500,8 @@ const styles = StyleSheet.create({
   saveBtn: { height: 50, borderRadius: RADIUS.md, backgroundColor: "#1F6BFF", alignItems: "center", justifyContent: "center", marginTop: SPACING.lg },
   saveTxt: { color: "#fff", fontWeight: "800", fontSize: 15 },
   markRow: { flexDirection: "row", alignItems: "center", gap: SPACING.sm, padding: SPACING.sm, backgroundColor: "rgba(255,255,255,0.04)", borderRadius: RADIUS.md },
+  absBtn: { width: 38, height: 40, borderRadius: 10, borderWidth: 1, borderColor: DARK.border, alignItems: "center", justifyContent: "center", backgroundColor: DARK.input },
+  absTxt: { color: DARK.sub, fontSize: 12, fontWeight: "800" },
+  delBtn: { width: 38, height: 38, borderRadius: 19, backgroundColor: "rgba(239,68,68,0.15)", alignItems: "center", justifyContent: "center" },
   markInput: { width: 76, height: 40, borderRadius: 10, backgroundColor: DARK.input, color: "#fff", textAlign: "center", fontSize: 16, fontWeight: "700", borderWidth: 1, borderColor: DARK.border },
 });
