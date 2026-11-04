@@ -6,14 +6,14 @@ import { InlineOverlay } from "@/src/components/InlineOverlay";
 import { dataUri } from "@/src/lib/hwFiles";
 
 // Full-screen look at one homework photo. role decides which endpoint is used. kind="attachment": the teacher's task photo; "submission": a student's answer photo.
-export function HomeworkPhotoViewer({ fileId, role, onClose, kind = "submission" }: { fileId: string | null; role: "student" | "teacher"; onClose: () => void; kind?: "submission" | "attachment" }) {
+export function HomeworkPhotoViewer({ fileId, role, onClose, kind = "submission" }: { fileId: string | null; role: "student" | "teacher"; onClose: () => void; kind?: "submission" | "attachment" | "notice" }) {
   const [uri, setUri] = useState<string | null>(null);
   const [err, setErr] = useState("");
   useEffect(() => {
     setUri(null); setErr("");
     if (!fileId) return;
     let live = true;
-    api<{ mime: string; data: string }>(`/${role}/homework/${kind === "attachment" ? "attachments" : "files"}/${fileId}`)
+    api<{ mime: string; data: string }>(kind === "notice" && role === "student" ? `/student/announcements/attachments/${fileId}` : `/${role}/homework/${kind === "submission" ? "files" : "attachments"}/${fileId}`)
       .then((r) => { if (live) setUri(dataUri(r.mime, r.data)); })
       .catch((e) => { if (live) setErr(e?.message || "Could not open this photo."); });
     return () => { live = false; };
