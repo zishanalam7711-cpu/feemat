@@ -304,7 +304,8 @@ async def store_attachment(db, teacher_uid: str, data_b64: str, thumb_b64: str, 
         _check_image(thumb_b64, MAX_THUMB_BYTES, "preview")
         thumb = thumb_b64
     cutoff = (now - timedelta(days=1)).isoformat()  # photos that never got attached to a homework are cleaned up after a day
-    await db.hw_files.delete_many({"teacher_user_id": teacher_uid, "kind": "attachment", "homework_id": None, "created_at": {"$lt": cutoff}})
+    await db.hw_files.delete_many({"teacher_user_id": teacher_uid, "kind": "attachment", "homework_id": None, "announcement_id": None,
+                                   "created_at": {"$lt": cutoff}})
     doc = {"id": str(uuid.uuid4()), "kind": "attachment", "teacher_user_id": teacher_uid, "student_user_id": None, "homework_id": None,
            "submission_id": None, "mime": mime, "data": data_b64, "thumb": thumb, "name": (name or "photo")[:80], "size": len(data_b64),
            "day": day, "created_at": now.isoformat()}
@@ -331,7 +332,8 @@ async def prepare_new(db, teacher_uid: str, hid: str, assigned_date: Optional[st
         raise HWError(400, f"You can attach at most {MAX_ATTACH} photos.")
     for fid in ids:
         f = await db.hw_files.find_one({"id": fid})
-        if not f or f.get("kind") != "attachment" or f["teacher_user_id"] != teacher_uid or f.get("homework_id") not in (None, hid):
+        if (not f or f.get("kind") != "attachment" or f["teacher_user_id"] != teacher_uid or f.get("homework_id") not in (None, hid)
+                or f.get("announcement_id")):
             raise HWError(400, "One of the photos was not found. Please add it again.")
     for fid in ids:
         await db.hw_files.update_one({"id": fid}, {"$set": {"homework_id": hid}})

@@ -2330,8 +2330,15 @@ async def run_reminders(user: dict = Depends(require_role("teacher"))):
 from types import SimpleNamespace  # noqa: E402
 import ai_routes  # noqa: E402
 
+import plusload  # noqa: E402
+from types import SimpleNamespace  # noqa: E402
+
 signup_otp.install(api, db, send_email, mail_configured, lambda: JWT_SECRET, now_utc)
 hw_submissions.install(api, db, notify, _resolve_targets, require_role("student"), require_role("teacher"), now_utc)
+
+# every plus_*.py file in this folder adds its own features (it may also replace older routes); a broken one is skipped
+plusload.load_all(api, SimpleNamespace(db=db, notify=notify, notify_many=notify_many, resolve_targets=_resolve_targets, require_role=require_role,
+                                       require_pro=require_pro, now_utc=now_utc, clean=clean))
 
 ai_routes.install(
     api,
