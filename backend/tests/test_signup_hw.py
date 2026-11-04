@@ -334,5 +334,129 @@ class TestHomeworkSubmission(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(await hw.my_submission(self.db, "s2", "h_all"))
 
 
+class TestHomeworkWithPhotos(unittest.IsolatedAsyncioTestCase):
+    """Teacher sends homework with subject, long details and photos; students see them; delete cleans everything."""
+
+    def setUp(self):
+        self.db, self.T1, self.T2, self.notify, self.resolve, self.notes = make_env()
+
+    async def up(self, teacher=None, now=NOW):
+        f = await hw.store_attachment(self.db, teacher or self.T1, jpeg_b64(), jpeg_b64((40, 30)), "board.jpg", now)
+        return f["id"]
+
+    async def new_hw(self, hid="hw_new", ids=None, **kw):
+        extra = await hw.prepare_new(self.db, self.T1, hid, kw.get("assigned"), kw.get("due", "2026-10-30"), kw.get("subject", "Maths"), ids or [], NOW)
+        doc = {"id": hid, "teacher_user_id": self.T1, "title": "Chapter 5", "description": "Do Q1 to Q10\nShow all steps", "due_date": kw.get("due", "2026-10-30"),
+               "target": kw.get("target", "all"), "target_id": kw.get("target_id"), "student_ids": [], "created_at": NOW.isoformat(), **extra}
+        self.db.homework.docs.append(doc)
+        return doc
+
+    async def test_upload_validation_and_cap(self):
+        with self.assertRaises(hw.HWError):
+            await hw.store_attachment(self.db, self.T1, base64.b64encode(b"not an image at all").decode(), "", "x", NOW)
+        for _ in range(hw.MAX_ATTACH_UPLOADS_PER_DAY):
+            await self.up()
+        with self.assertRaises(hw.HWError) as cm:
+            await self.up()
+        self.assertEqual(cm.exception.status, 429)
+
+    async def test_unattached_photos_are_cleaned_after_a_day(self):
+        await self.up(now=NOW)
+        await self.up(now=NOW + timedelta(days=2))
+        self.assertEqual(len(self.db.hw_files.docs), 1)
+
+    async def test_homework_gets_subject_date_and_photos(self):
+        ids = [await self.up(), await self.up()]
+        doc = await self.new_hw(ids=ids, subject="  Science ")
+        self.assertEqual((doc["subject"], doc["assigned_date"], doc["attachment_ids"]), ("Science", "2026-10-24", ids))
+        out = (await hw.with_attachments(self.db, [dict(doc)]))[0]
+        self.assertEqual([a["id"] for a in out["attachments"]], ids)
+        self.assertTrue(out["attachments"][0]["thumb"])
+        self.assertTrue(all(f["homework_id"] == "hw_new" for f in self.db.hw_files.docs))
+
+    async def test_old_homework_without_new_fields_still_works(self):
+        old = {"id": "old", "teacher_user_id": self.T1, "title": "Old", "due_date": "2026-10-01", "created_at": "2026-09-28T10:00:00+00:00"}
+        out = (await hw.with_attachments(self.db, [old]))[0]
+        self.assertEqual((out["subject"], out["assigned_date"], out["attachments"]), ("", "2026-09-28", []))
+
+    async def test_new_homework_validation(self):
+        for kwargs in ({"assigned": "24-10-2026"}, {"assigned": "2026-01-01"}, {"assigned": "2026-12-30"}, {"assigned": "2026-10-24", "due": "2026-10-20"}):
+            with self.assertRaises(hw.HWError):
+                await self.new_hw(**kwargs)
+        ids = [await self.up() for _ in range(hw.MAX_ATTACH + 1)]
+        with self.assertRaises(hw.HWError):
+            await self.new_hw(ids=ids)
+        await self.new_hw(assigned="2026-10-23", due="2026-10-25")  # yesterday is fine
+
+    async def test_cannot_attach_other_teachers_or_reused_photo(self):
+        other = await self.up(teacher=self.T2)
+        with self.assertRaises(hw.HWError):
+            await self.new_hw(ids=[other])
+        mine = await self.up()
+        await self.new_hw(hid="a", ids=[mine])
+        with self.assertRaises(hw.HWError):  # already used by another homework
+            await hw.prepare_new(self.db, self.T1, "b", None, "2026-10-30", "", [mine], NOW)
+
+    async def test_student_can_open_photo_only_of_own_homework(self):
+        fid = await self.up()
+        await self.new_hw(ids=[fid], target="class", target_id="c8")
+        self.assertTrue((await hw.attachment_for_student(self.db, "s1", fid))["data"])   # class 8
+        with self.assertRaises(hw.HWError):
+            await hw.attachment_for_student(self.db, "s4", fid)                           # class 9
+        with self.assertRaises(hw.HWError):
+            await hw.attachment_for_student(self.db, "s9", fid)                           # other teacher's student
+        with self.assertRaises(hw.HWError):
+            await hw.attachment_for_student(self.db, "s1", "missing")
+
+    async def test_unattached_photo_is_not_visible_to_students(self):
+        fid = await self.up()
+        with self.assertRaises(hw.HWError):
+            await hw.attachment_for_student(self.db, "s1", fid)
+
+    async def test_teacher_photo_access_and_route_separation(self):
+        fid = await self.up()
+        self.assertTrue((await hw.attachment_for_teacher(self.db, self.T1, fid))["data"])
+        with self.assertRaises(hw.HWError):
+            await hw.attachment_for_teacher(self.db, self.T2, fid)
+        with self.assertRaises(hw.HWError):  # a teacher's photo cannot be read through the student-submission route
+            await hw.file_for_teacher(self.db, self.T1, fid)
+        await self.new_hw(ids=[fid])
+        sub = await hw.submit(self.db, self.notify, "s1", "hw_new", [await hw.store_file(self.db, "s1", jpeg_b64(), "", "p", NOW) and self.db.hw_files.docs[-1]["id"]], "", NOW)
+        sub_file = sub["files"][0]["id"]
+        with self.assertRaises(hw.HWError):  # and a student's submission photo is not an 'attachment'
+            await hw.attachment_for_teacher(self.db, self.T1, sub_file)
+
+    async def test_list_stays_light_for_old_homework(self):
+        docs = []
+        for n in range(hw.THUMB_DOCS + 3):
+            fid = await self.up()
+            d = await self.new_hw(hid=f"h{n}", ids=[fid])
+            docs.append(dict(d))
+        out = await hw.with_attachments(self.db, docs)
+        self.assertTrue(out[0]["attachments"][0]["thumb"])
+        self.assertEqual(out[-1]["attachments"][0]["thumb"], "")
+        self.assertEqual(len(out[-1]["attachments"]), 1)  # still openable on tap
+
+    async def test_delete_removes_everything_of_that_homework_only(self):
+        keep_photo = await self.up()
+        await self.new_hw(hid="keep", ids=[keep_photo])
+        gone_photo = await self.up()
+        await self.new_hw(hid="gone", ids=[gone_photo])
+        f = await hw.store_file(self.db, "s1", jpeg_b64(), "", "p", NOW)
+        await hw.submit(self.db, self.notify, "s1", "gone", [f["id"]], "", NOW)
+        out = await hw.delete_homework(self.db, self.T1, "gone")
+        self.assertEqual(out["deleted_submissions"], 1)
+        self.assertEqual([h["id"] for h in self.db.homework.docs if h["id"] in ("keep", "gone")], ["keep"])
+        self.assertEqual(self.db.hw_submissions.docs, [])
+        self.assertEqual([x["id"] for x in self.db.hw_files.docs], [keep_photo])
+
+    async def test_other_teacher_cannot_delete(self):
+        await self.new_hw(hid="mine")
+        with self.assertRaises(hw.HWError) as cm:
+            await hw.delete_homework(self.db, self.T2, "mine")
+        self.assertEqual(cm.exception.status, 404)
+        self.assertEqual(len([h for h in self.db.homework.docs if h["id"] == "mine"]), 1)
+
+
 if __name__ == "__main__":
     unittest.main()
