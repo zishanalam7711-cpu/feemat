@@ -57,7 +57,8 @@ export default function StudentHome() {
     { label: "Homework", icon: "clipboard", color: "#16A34A", onPress: () => router.push("/student/homework" as any) },
     { label: "Results", icon: "ribbon", color: "#F59E0B", onPress: () => router.push("/student/results" as any) },
     { label: "Timetable", icon: "calendar-number", color: "#38BDF8", onPress: () => router.push("/student/timetable" as any) },
-    { label: "Attendance", icon: "calendar", color: "#14B8A6", onPress: () => (c ? router.push({ pathname: "/student/fee", params: { id: c.id } }) : null) },
+    { label: "Attendance", icon: "calendar", color: "#14B8A6", onPress: () => router.push("/student/attendance" as any) },
+    { label: "Notices", icon: "megaphone", color: "#F97316", onPress: () => router.push("/student/announcements" as any) },
     { label: "Fee Details", icon: "wallet", color: "#EC4899", onPress: () => (c ? router.push({ pathname: "/student/fee", params: { id: c.id } }) : null) },
   ];
 

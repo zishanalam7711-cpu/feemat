@@ -18,7 +18,7 @@ const tabBar = {
   shadowOffset: { width: 0, height: -4 },
 } as const;
 
-const HIDDEN = ["notifications", "pay", "teacher/[teacherId]", "fee", "homework", "results", "receipt/[receiptNumber]", "timetable"];
+const HIDDEN = ["notifications", "pay", "teacher/[teacherId]", "fee", "homework", "results", "receipt/[receiptNumber]", "timetable", "announcements", "attendance"];
 
 export default function StudentLayout() {
   return (
