@@ -7,6 +7,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { SPACING, RADIUS, inr } from "@/src/lib/theme";
 import { api } from "@/src/lib/api";
+import { CollectionStatementSheet, ExamPerformanceSheet } from "@/src/components/ReportSheets";
 import { ProUpgradeModal } from "@/src/components/ProUpgradeModal";
 
 const DARK = {
@@ -45,6 +46,8 @@ export default function Reports() {
   const [refreshing, setRefreshing] = useState(false);
   const [pro, setPro] = useState(false);
   const [tab, setTab] = useState<Tab>("overview");
+  const [stmtOpen, setStmtOpen] = useState(false);
+  const [examOpen, setExamOpen] = useState(false);
   const [sending, setSending] = useState(false);
 
   const load = useCallback(async () => {
@@ -174,6 +177,10 @@ export default function Reports() {
         {/* ================= OVERVIEW ================= */}
         {tab === "overview" && (
           <>
+            <View style={{ flexDirection: "row", gap: 8 }}>
+              <Pressable onPress={() => setStmtOpen(true)} style={styles.repBtn} testID="open-statement"><Ionicons name="receipt" size={16} color="#35A7FF" /><Text style={styles.repTxt}>Monthly statement</Text></Pressable>
+              <Pressable onPress={() => setExamOpen(true)} style={styles.repBtn} testID="open-exam-perf"><Ionicons name="ribbon" size={16} color="#FBBF24" /><Text style={styles.repTxt}>Exam performance</Text></Pressable>
+            </View>
             <View style={styles.grid}>
               <Stat icon="people" color="#35A7FF" label="Students" value={String(ov.students)} />
               <Stat icon="cash" color="#10B981" label="Collected this month" value={inr(ov.collected_month)}
@@ -407,6 +414,8 @@ export default function Reports() {
           </>
         )}
       </ScrollView>
+      <CollectionStatementSheet visible={stmtOpen} onClose={() => setStmtOpen(false)} bottomInset={insets.bottom} />
+      <ExamPerformanceSheet visible={examOpen} onClose={() => setExamOpen(false)} bottomInset={insets.bottom} />
     </View>
   );
 }
@@ -432,6 +441,8 @@ function Stat({ icon, color, label, value, sub, subColor }: { icon: any; color: 
 }
 
 const styles = StyleSheet.create({
+  repBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, height: 42, borderRadius: 12, backgroundColor: "rgba(255,255,255,0.08)" },
+  repTxt: { color: "#fff", fontWeight: "700", fontSize: 12.5 },
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
   header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: SPACING.md, paddingHorizontal: SPACING.lg, paddingBottom: SPACING.sm },
   title: { flex: 1, color: "#fff", fontSize: 20, fontWeight: "800" },

@@ -8,6 +8,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { SPACING, RADIUS } from "@/src/lib/theme";
 import { api } from "@/src/lib/api";
+import { CancelClassSheet, CopyDaySheet } from "@/src/components/TimetableTools";
+import { localToday, addDaysYmd, dayLabel } from "@/src/lib/hwFiles";
 
 const DARK = {
   bg: "#071B45",
@@ -57,6 +59,9 @@ export default function TeacherTimetable() {
   const [room, setRoom] = useState("");
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
+  const [exc, setExc] = useState<any[]>([]);
+  const [cancelFor, setCancelFor] = useState<any>(null);
+  const [copyOpen, setCopyOpen] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -67,6 +72,7 @@ export default function TeacherTimetable() {
         api("/teacher/subjects").catch(() => []),
       ]);
       setItems(t || []); setClasses(c || []); setBatches(b || []); setSubjects(s || []);
+      try { setExc(await api("/teacher/timetable/exceptions")); } catch {}
     } catch {}
     setLoading(false);
   }, []);
@@ -141,6 +147,9 @@ export default function TeacherTimetable() {
           <Text style={styles.title}>Timetable</Text>
           <Text style={styles.sub}>{items.length} classes per week</Text>
         </View>
+        <Pressable testID="copy-day-btn" onPress={() => setCopyOpen(true)} style={[styles.addBtn, { backgroundColor: "rgba(255,255,255,0.12)" }]}>
+          <Ionicons name="copy-outline" size={16} color="#fff" />
+        </Pressable>
         <Pressable testID="add-class-btn" onPress={openNew} style={styles.addBtn}>
           <Ionicons name="add" size={18} color="#fff" />
           <Text style={styles.addTxt}>Add</Text>
@@ -180,7 +189,11 @@ export default function TeacherTimetable() {
                 <Text style={styles.cTitle}>{e.subject}</Text>
                 <Text style={styles.meta}>{nameOf(e)}{e.room ? ` • Room ${e.room}` : ""}</Text>
                 {e.note ? <Text style={styles.note}>{e.note}</Text> : null}
+                {(() => { const c = exc.filter((x) => x.entry_id === e.id); return c.length ? <Text style={styles.cancelNote}>Cancelled: {c.slice(0, 2).map((x) => dayLabel(x.date, localToday()) + " " + x.date.slice(8) + "/" + x.date.slice(5, 7)).join(", ")}{c.length > 2 ? ` +${c.length - 2}` : ""}</Text> : null; })()}
               </View>
+              <Pressable onPress={() => setCancelFor(e)} hitSlop={10} style={styles.delBtn} testID={`cancel-${e.id}`}>
+                <Ionicons name="close-circle-outline" size={19} color="#FBBF24" />
+              </Pressable>
               <Pressable onPress={() => remove(e)} hitSlop={10} style={styles.delBtn}>
                 <Ionicons name="trash" size={18} color="#F87171" />
               </Pressable>
@@ -280,11 +293,14 @@ export default function TeacherTimetable() {
           </View>
         </View>
       </InlineOverlay>
+      <CancelClassSheet visible={!!cancelFor} entry={cancelFor} cancelled={exc} onClose={() => setCancelFor(null)} bottomInset={insets.bottom} onChanged={load} />
+      <CopyDaySheet visible={copyOpen} fromDay={day} onClose={() => setCopyOpen(false)} bottomInset={insets.bottom} onDone={load} />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  cancelNote: { color: "#FBBF24", fontSize: 11.5, fontWeight: "700", marginTop: 4 },
   center: { flex: 1, alignItems: "center", justifyContent: "center", padding: SPACING.xl, gap: SPACING.sm },
   header: { flexDirection: "row", alignItems: "center", gap: SPACING.md, paddingHorizontal: SPACING.lg, paddingBottom: SPACING.sm },
   title: { color: "#fff", fontSize: 22, fontWeight: "800" },

@@ -19,10 +19,12 @@ export default function TeacherProfileScreen() {
   const [t, setT] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [comp, setComp] = useState<any>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     try { setT(await api("/teacher/profile")); } catch {}
+    try { setComp(await api("/teacher/profile/completeness")); } catch {}
     setLoading(false);
   }, []);
   useFocusEffect(useCallback(() => { load(); }, [load]));
@@ -44,6 +46,7 @@ export default function TeacherProfileScreen() {
     setSaving(false);
   };
 
+  const shareInvite = async () => { try { await Share.share({ message: comp?.invite_text || `Join my class on FeeMat. My Teacher ID is ${t?.teacher_id}` }); } catch {} };
   const shareId = async () => {
     await Share.share({ message: `Join my class on FeeMat. My Teacher ID is ${t?.teacher_id}` });
   };
@@ -62,6 +65,18 @@ export default function TeacherProfileScreen() {
             <Ionicons name="share-outline" size={14} color={COLORS.brand} />
           </Pressable>
         </View>
+
+        {comp ? (
+          <View style={styles.compCard} testID="profile-completeness">
+            <View style={styles.compTop}>
+              <Text style={styles.compPct}>{comp.percent}%</Text>
+              <View style={{ flex: 1 }}><Text style={styles.compTitle}>Profile {comp.level.toLowerCase()}</Text><Text style={styles.compSub}>{comp.missing.length ? "Complete it so parents and students trust you." : "Your profile is complete."}</Text></View>
+            </View>
+            <View style={styles.compBar}><View style={[styles.compFill, { width: `${comp.percent}%` }]} /></View>
+            {comp.missing.slice(0, 3).map((m: any) => <Text key={m.key} style={styles.compItem}>• {m.label}: {m.tip}</Text>)}
+            <Pressable onPress={shareInvite} style={styles.inviteBtn} testID="share-invite"><Ionicons name="share-social" size={16} color={COLORS.brand} /><Text style={styles.inviteTxt}>Invite students (share on WhatsApp)</Text></Pressable>
+          </View>
+        ) : null}
 
         <View style={styles.section}>
           <Text style={styles.sectTitle}>Personal</Text>
@@ -160,6 +175,16 @@ function ReminderControls() {
 }
 
 const styles = StyleSheet.create({
+  compCard: { backgroundColor: COLORS.surface, marginHorizontal: SPACING.lg, marginTop: SPACING.md, borderRadius: RADIUS.md, padding: SPACING.md, borderWidth: 1, borderColor: COLORS.divider, gap: 6 },
+  compTop: { flexDirection: "row", alignItems: "center", gap: SPACING.md },
+  compPct: { fontSize: 30, fontWeight: "900", color: COLORS.brand },
+  compTitle: { fontSize: 15, fontWeight: "800", color: COLORS.onSurface },
+  compSub: { fontSize: 12, color: COLORS.muted, marginTop: 2 },
+  compBar: { height: 8, borderRadius: 4, backgroundColor: COLORS.surfaceSecondary },
+  compFill: { height: 8, borderRadius: 4, backgroundColor: COLORS.brand },
+  compItem: { fontSize: 12.5, color: COLORS.onSurfaceSecondary, lineHeight: 18 },
+  inviteBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, height: 42, borderRadius: RADIUS.md, backgroundColor: COLORS.brandSoft, marginTop: 4 },
+  inviteTxt: { color: COLORS.brand, fontWeight: "800", fontSize: 13 },
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
   header: { alignItems: "center", padding: SPACING.xl, gap: SPACING.sm, backgroundColor: "#071E4A" },
   name: { fontSize: 22, fontWeight: "800", color: "#FFFFFF" },

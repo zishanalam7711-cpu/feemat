@@ -10,6 +10,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { SPACING, RADIUS, inr } from "@/src/lib/theme";
 import { api } from "@/src/lib/api";
 import { Avatar } from "@/src/components/Avatar";
+import { LateFeeSheet, ReminderCenterSheet } from "@/src/components/FeeToolSheets";
+import { openWhatsApp } from "@/src/lib/contact";
 
 const DARK = {
   bg: "#071B45",
@@ -28,6 +30,11 @@ export default function CollectFees() {
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState("");
   const [onlyDue, setOnlyDue] = useState(true);
+  const [lateOpen, setLateOpen] = useState(false);
+  const [remOpen, setRemOpen] = useState(false);
+  const [sum, setSum] = useState<any>(null);
+  const loadSummary = useCallback(async () => { try { setSum(await api("/teacher/fees/summary")); } catch {} }, []);
+  useFocusEffect(useCallback(() => { loadSummary(); }, [loadSummary]));
   const [sel, setSel] = useState<any>(null);
   const [amount, setAmount] = useState("");
   const [method, setMethod] = useState("Cash");
@@ -63,9 +70,16 @@ export default function CollectFees() {
         method: "POST",
         body: { amount: amt, method, notes },
       });
+      const paidFor = sel;
       setSel(null);
       await load();
-      router.push(`/teacher/receipt/${res.receipt.receipt_number}` as any);
+      loadSummary();
+      const rn = res.receipt.receipt_number;
+      const left = Math.max((paidFor?.due || 0) - amt, 0);
+      Alert.alert("Payment received ✓", `${inr(amt)} from ${paidFor?.student?.name || "student"}`, [
+        { text: "WhatsApp receipt", onPress: () => { openWhatsApp(paidFor?.student?.phone, `Receipt ${rn}: ${inr(amt)} received for ${paidFor?.student?.name || "your child"} (${method}). ${left > 0 ? `Balance pending: ${inr(left)}.` : "All fees are paid."} Thank you.`); router.push(`/teacher/receipt/${rn}` as any); } },
+        { text: "View receipt", onPress: () => router.push(`/teacher/receipt/${rn}` as any) },
+      ]);
     } catch (e: any) {
       Alert.alert("Error", e?.message || "Could not save the payment.");
     }
@@ -82,6 +96,17 @@ export default function CollectFees() {
         <View style={styles.dueBox}>
           <Text style={styles.dueLbl}>{onlyDue ? "Total Pending" : "Total Due (all listed)"}</Text>
           <Text style={styles.dueVal}>{inr(totalDue)}</Text>
+        </View>
+        {sum ? (
+          <View style={styles.sumStrip}>
+            <View style={styles.sumItem}><Text style={styles.sumVal}>{inr(sum.today_total)}</Text><Text style={styles.sumLbl}>Today ({sum.today_count})</Text></View>
+            <View style={styles.sumItem}><Text style={styles.sumVal}>{inr(sum.month_total)}</Text><Text style={styles.sumLbl}>This month</Text></View>
+            <View style={styles.sumItem}><Text style={[styles.sumVal, { color: "#F87171" }]}>{sum.students_with_due}</Text><Text style={styles.sumLbl}>With due</Text></View>
+          </View>
+        ) : null}
+        <View style={styles.toolRow}>
+          <Pressable onPress={() => setRemOpen(true)} style={styles.toolBtn} testID="open-reminders"><Ionicons name="notifications" size={16} color="#35A7FF" /><Text style={styles.toolTxt}>Reminders</Text></Pressable>
+          <Pressable onPress={() => setLateOpen(true)} style={styles.toolBtn} testID="open-late-fee"><Ionicons name="alarm" size={16} color="#FBBF24" /><Text style={styles.toolTxt}>Late fee</Text></Pressable>
         </View>
         <View style={styles.searchWrap}>
           <Ionicons name="search" size={18} color={DARK.sub} />
@@ -169,11 +194,20 @@ export default function CollectFees() {
           </View>
         </View>
       </InlineOverlay>
+      <LateFeeSheet visible={lateOpen} onClose={() => setLateOpen(false)} bottomInset={insets.bottom} onApplied={() => { load(); loadSummary(); }} />
+      <ReminderCenterSheet visible={remOpen} onClose={() => setRemOpen(false)} bottomInset={insets.bottom} />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  sumStrip: { flexDirection: "row", gap: 8, marginBottom: 8 },
+  sumItem: { flex: 1, backgroundColor: "rgba(255,255,255,0.07)", borderRadius: 12, paddingVertical: 8, alignItems: "center" },
+  sumVal: { color: "#fff", fontSize: 15, fontWeight: "900" },
+  sumLbl: { color: "rgba(255,255,255,0.6)", fontSize: 11, marginTop: 1 },
+  toolRow: { flexDirection: "row", gap: 8, marginBottom: 8 },
+  toolBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, height: 38, borderRadius: 12, backgroundColor: "rgba(255,255,255,0.08)" },
+  toolTxt: { color: "#fff", fontWeight: "700", fontSize: 13 },
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
   header: { paddingHorizontal: SPACING.lg, paddingBottom: SPACING.md },
   topRow: { flexDirection: "row", alignItems: "center", gap: SPACING.md, marginBottom: SPACING.md },
