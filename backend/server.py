@@ -133,6 +133,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="FeeMat API V2", lifespan=lifespan)
 api = APIRouter(prefix="/api")
+PAYMENT_HOOKS: list = []  # plus modules add async functions here; each is called as hook(conn, installment, receipt) after a payment is recorded
 
 
 # ---------- utils ----------
@@ -1419,6 +1420,11 @@ async def add_installment(connection_id: str, data: InstallmentIn, user: dict = 
     await db.receipts.insert_one(receipt)
     # notify
     await notify(conn["student_user_id"], "Payment Received", f"₹{data.amount:.0f} recorded for {target_month} (Receipt {receipt_number}).", "success")
+    for hook in PAYMENT_HOOKS:  # automatic messages (month fully paid, WhatsApp, ...). A failing hook never undoes the payment.
+        try:
+            await hook(conn, inst, receipt)
+        except Exception:
+            logging.getLogger("feemat").exception("payment hook failed")
     return {"installment": clean(inst), "receipt": clean(receipt)}
 
 
@@ -2338,7 +2344,8 @@ hw_submissions.install(api, db, notify, _resolve_targets, require_role("student"
 
 # every plus_*.py file in this folder adds its own features (it may also replace older routes); a broken one is skipped
 plusload.load_all(api, SimpleNamespace(db=db, notify=notify, notify_many=notify_many, resolve_targets=_resolve_targets, require_role=require_role,
-                                       require_pro=require_pro, now_utc=now_utc, clean=clean))
+                                       require_pro=require_pro, now_utc=now_utc, clean=clean, current_user=current_user,
+                                       payment_hooks=PAYMENT_HOOKS))
 
 ai_routes.install(
     api,
