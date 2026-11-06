@@ -28,7 +28,7 @@ export default function StudentProfile() {
     setSaving(true);
     try {
       const body: any = {
-        name: s.name, father_name: s.father_name, phone: s.phone, class: s.class, address: s.address, photo_url: s.photo_url,
+        name: s.name, father_name: s.father_name, phone: s.phone, class: s.class, address: s.address, photo_url: s.photo_url, parent_phone: s.parent_phone, school: s.school,
       };
       const updated = await api("/student/profile", { method: "PUT", body });
       setS(updated);
@@ -49,6 +49,8 @@ export default function StudentProfile() {
           <Input testID="s-name" label="Full Name" value={s.name || ""} onChangeText={(v) => patch("name", v)} />
           <Input label="Father's Name" value={s.father_name || ""} onChangeText={(v) => patch("father_name", v)} />
           <Input label="Phone" value={s.phone || ""} onChangeText={(v) => patch("phone", v)} keyboardType="phone-pad" />
+          <Input testID="s-parent-phone" label="Parent's WhatsApp number (fee and payment messages go here)" value={s.parent_phone || ""} onChangeText={(v) => patch("parent_phone", v)} keyboardType="phone-pad" />
+          <Input label="School" value={s.school || ""} onChangeText={(v) => patch("school", v)} />
           <Input label="Class / Course" value={s.class || ""} onChangeText={(v) => patch("class", v)} />
           <Input label="Address" value={s.address || ""} onChangeText={(v) => patch("address", v)} multiline />
           <PhotoPicker label="Profile Photo" name={s.name} value={s.photo_url} onChange={(v) => patch("photo_url", v)} />

@@ -7,6 +7,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { GRAD, inr } from "@/src/lib/theme";
 import { api } from "@/src/lib/api";
 import { Avatar } from "@/src/components/Avatar";
+import { StudentTodayCard } from "@/src/components/StudentTodayCard";
 import { GradientBg, Logo, GradBtn } from "@/src/components/ui";
 
 export default function StudentHome() {
@@ -89,6 +90,8 @@ export default function StudentHome() {
               {c ? <Text style={styles.tid} testID="admission-number">Adm: {c.admission_number}</Text> : <Text style={styles.tid}>Not connected yet</Text>}
             </View>
           </View>
+
+          {t ? <StudentTodayCard /> : null}
 
           {!t ? (
             <View style={styles.emptyCard}>
