@@ -11,6 +11,7 @@ import { SPACING, RADIUS, inr } from "@/src/lib/theme";
 import { api } from "@/src/lib/api";
 import { Avatar } from "@/src/components/Avatar";
 import { LateFeeSheet, ReminderCenterSheet } from "@/src/components/FeeToolSheets";
+import { AutoMessagesSheet } from "@/src/components/AutoMessagesSheet";
 import { openWhatsApp } from "@/src/lib/contact";
 
 const DARK = {
@@ -33,6 +34,10 @@ export default function CollectFees() {
   const [lateOpen, setLateOpen] = useState(false);
   const [remOpen, setRemOpen] = useState(false);
   const [sum, setSum] = useState<any>(null);
+  const [msgOpen, setMsgOpen] = useState(false);
+  const [waPending, setWaPending] = useState(0);
+  const loadPending = useCallback(async () => { try { const r: any = await api("/teacher/auto-messages"); setWaPending(r.pending || 0); } catch {} }, []);
+  useFocusEffect(useCallback(() => { loadPending(); }, [loadPending]));
   const loadSummary = useCallback(async () => { try { setSum(await api("/teacher/fees/summary")); } catch {} }, []);
   useFocusEffect(useCallback(() => { loadSummary(); }, [loadSummary]));
   const [sel, setSel] = useState<any>(null);
@@ -74,6 +79,7 @@ export default function CollectFees() {
       setSel(null);
       await load();
       loadSummary();
+      loadPending();
       const rn = res.receipt.receipt_number;
       const left = Math.max((paidFor?.due || 0) - amt, 0);
       Alert.alert("Payment received ✓", `${inr(amt)} from ${paidFor?.student?.name || "student"}`, [
@@ -106,6 +112,7 @@ export default function CollectFees() {
         ) : null}
         <View style={styles.toolRow}>
           <Pressable onPress={() => setRemOpen(true)} style={styles.toolBtn} testID="open-reminders"><Ionicons name="notifications" size={16} color="#35A7FF" /><Text style={styles.toolTxt}>Reminders</Text></Pressable>
+          <Pressable onPress={() => setMsgOpen(true)} style={styles.toolBtn} testID="open-auto-messages"><Ionicons name="chatbubbles" size={16} color="#22C55E" /><Text style={styles.toolTxt}>Messages{waPending ? ` (${waPending})` : ""}</Text></Pressable>
           <Pressable onPress={() => setLateOpen(true)} style={styles.toolBtn} testID="open-late-fee"><Ionicons name="alarm" size={16} color="#FBBF24" /><Text style={styles.toolTxt}>Late fee</Text></Pressable>
         </View>
         <View style={styles.searchWrap}>
@@ -195,6 +202,7 @@ export default function CollectFees() {
         </View>
       </InlineOverlay>
       <LateFeeSheet visible={lateOpen} onClose={() => setLateOpen(false)} bottomInset={insets.bottom} onApplied={() => { load(); loadSummary(); }} />
+      <AutoMessagesSheet visible={msgOpen} onClose={() => setMsgOpen(false)} bottomInset={insets.bottom} onChanged={loadPending} />
       <ReminderCenterSheet visible={remOpen} onClose={() => setRemOpen(false)} bottomInset={insets.bottom} />
     </View>
   );
